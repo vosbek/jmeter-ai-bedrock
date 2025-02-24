@@ -51,11 +51,11 @@ public class AiChatPanel extends JPanel {
 
             conversationHistory.add(message);
 
-            // Call Claude API
+            // Call Claude API with full conversation history
             new SwingWorker<String, Void>() {
                 @Override
                 protected String doInBackground() {
-                    return claudeService.sendMessage(message);
+                    return claudeService.generateResponse(new ArrayList<>(conversationHistory));
                 }
 
                 @Override
