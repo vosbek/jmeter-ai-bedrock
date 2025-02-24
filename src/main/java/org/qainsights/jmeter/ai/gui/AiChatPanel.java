@@ -1,5 +1,6 @@
 package org.qainsights.jmeter.ai.gui;
 
+import org.qainsights.jmeter.ai.service.ClaudeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import javax.swing.*;

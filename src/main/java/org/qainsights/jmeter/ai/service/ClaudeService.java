@@ -1,4 +1,4 @@
-package org.qainsights.jmeter.ai.gui;
+package org.qainsights.jmeter.ai.service;
 
 import java.util.List;
 
