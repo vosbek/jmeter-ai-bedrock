@@ -11,11 +11,10 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.Objects;
-
-
 public class AiMenuItem extends JMenuItem implements ActionListener{
     private static final Logger log = LoggerFactory.getLogger(AiMenuItem.class);
     private static final Action vtg = new AI();
+    private AiChatPanel currentChatPanel;
 
     public AiMenuItem() {
         super(vtg);
@@ -96,10 +95,17 @@ public class AiMenuItem extends JMenuItem implements ActionListener{
         GuiPackage guiPackage = GuiPackage.getInstance();
         if (guiPackage != null) {
             MainFrame mainFrame = guiPackage.getMainFrame();
-            AiChatPanel chatPanel = new AiChatPanel();
-
-            // Add the chat panel to the right side of the main frame
-            mainFrame.getContentPane().add(chatPanel, BorderLayout.EAST);
+            
+            if (currentChatPanel != null) {
+                // Panel is currently shown, remove it
+                mainFrame.getContentPane().remove(currentChatPanel);
+                currentChatPanel = null;
+            } else {
+                // Panel is not shown, add it
+                currentChatPanel = new AiChatPanel();
+                mainFrame.getContentPane().add(currentChatPanel, BorderLayout.EAST);
+            }
+            
             mainFrame.revalidate();
             mainFrame.repaint();
         }
