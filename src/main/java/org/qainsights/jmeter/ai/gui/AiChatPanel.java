@@ -27,10 +27,10 @@ public class AiChatPanel extends JPanel {
     private ClaudeService claudeService;
     private JComboBox<ModelInfo> modelSelector;
     private static final Logger log = LoggerFactory.getLogger(AiChatPanel.class);
-    
+
     // Pattern to match code blocks in markdown (```language code ```)
     private static final Pattern CODE_BLOCK_PATTERN = Pattern.compile("```([\\w-]*)\\s*([\\s\\S]*?)```");
-    
+
     // Map to store code snippets for copying
     private Map<String, String> codeSnippets = new HashMap<>();
 
@@ -41,21 +41,23 @@ public class AiChatPanel extends JPanel {
 
         // Create the top panel for model selection
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        
+
         // Initialize model selector with loading state
         modelSelector = new JComboBox<>();
         modelSelector.addItem(null); // Add empty item while loading
         modelSelector.setRenderer(new DefaultListCellRenderer() {
             @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
+                    boolean cellHasFocus) {
                 if (value == null) {
-                    return super.getListCellRendererComponent(list, "Loading models...", index, isSelected, cellHasFocus);
+                    return super.getListCellRendererComponent(list, "Loading models...", index, isSelected,
+                            cellHasFocus);
                 }
                 ModelInfo model = (ModelInfo) value;
                 return super.getListCellRendererComponent(list, model.id(), index, isSelected, cellHasFocus);
             }
         });
-        
+
         // Load models in background
         new SwingWorker<List<ModelInfo>, Void>() {
             @Override
@@ -124,6 +126,10 @@ public class AiChatPanel extends JPanel {
     private void sendMessage() {
         String message = inputField.getText().trim();
         if (!message.isEmpty()) {
+            // Disable input field and send button while waiting for response
+            inputField.setEnabled(false);
+            sendButton.setEnabled(false);
+
             appendToChat("You: " + message, Color.BLUE, false);
             inputField.setText("");
 
@@ -155,6 +161,11 @@ public class AiChatPanel extends JPanel {
                     } catch (Exception e) {
                         log.error("Error getting response", e);
                         appendToChat("Error: " + e.getMessage(), Color.RED, false);
+                    } finally {
+                        // Re-enable input field and send button after response is received
+                        inputField.setEnabled(true);
+                        sendButton.setEnabled(true);
+                        inputField.requestFocus();
                     }
                 }
             }.execute();
@@ -163,17 +174,17 @@ public class AiChatPanel extends JPanel {
 
     private void appendToChat(String message, Color color, boolean parseMarkdown) {
         StyledDocument doc = chatArea.getStyledDocument();
-        
+
         try {
             // Add the sender part with the specified color
             SimpleAttributeSet senderStyle = new SimpleAttributeSet();
             StyleConstants.setForeground(senderStyle, color);
             StyleConstants.setBold(senderStyle, true);
-            
+
             // For Claude messages, only style the "Claude: " part
             if (message.startsWith("Claude: ") && parseMarkdown) {
                 doc.insertString(doc.getLength(), "Claude: ", senderStyle);
-                
+
                 // Process the rest of the message for markdown
                 String claudeMessage = message.substring("Claude: ".length());
                 processMarkdownMessage(doc, claudeMessage);
@@ -181,63 +192,63 @@ public class AiChatPanel extends JPanel {
                 // For user messages or non-markdown messages
                 doc.insertString(doc.getLength(), message + "\n\n", senderStyle);
             }
-            
+
             // Scroll to the end
             chatArea.setCaretPosition(doc.getLength());
         } catch (BadLocationException e) {
             log.error("Error appending to chat", e);
         }
     }
-    
+
     private void processMarkdownMessage(StyledDocument doc, String message) throws BadLocationException {
         // Find all code blocks in the message
         Matcher matcher = CODE_BLOCK_PATTERN.matcher(message);
-        
+
         int lastEnd = 0;
         int blockCount = 0;
-        
+
         // Process each code block
         while (matcher.find()) {
             blockCount++;
-            
+
             // Add the text before the code block
             String textBefore = message.substring(lastEnd, matcher.start());
             if (!textBefore.isEmpty()) {
                 // Process basic markdown in the text before the code block
                 processBasicMarkdown(doc, textBefore);
             }
-            
+
             // Get the code block content
             String language = matcher.group(1).trim();
             String codeContent = matcher.group(2).trim();
             String codeId = "code_" + System.currentTimeMillis() + "_" + blockCount;
-            
+
             // Store the code for copying
             codeSnippets.put(codeId, codeContent);
-            
+
             // Add code block header with language and copy button
             SimpleAttributeSet codeHeaderStyle = new SimpleAttributeSet();
             StyleConstants.setBackground(codeHeaderStyle, new Color(240, 240, 240));
             StyleConstants.setForeground(codeHeaderStyle, Color.GRAY);
             StyleConstants.setFontFamily(codeHeaderStyle, "Monospaced");
-            
+
             // Insert a newline before the code block
             doc.insertString(doc.getLength(), "\n", null);
-            
+
             // Create a panel for the code block header
             JPanel headerPanel = new JPanel(new BorderLayout());
             headerPanel.setBackground(new Color(240, 240, 240));
             headerPanel.setBorder(BorderFactory.createEmptyBorder(2, 5, 2, 5));
-            
+
             JLabel languageLabel = new JLabel(language.isEmpty() ? "code" : language);
             languageLabel.setForeground(Color.GRAY);
-            
+
             JButton copyButton = new JButton("Copy");
             copyButton.setFocusPainted(false);
             copyButton.setBackground(new Color(76, 175, 80));
-            copyButton.setForeground(Color.BLACK); 
+            copyButton.setForeground(Color.BLACK);
             copyButton.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
-            
+
             final String snippetId = codeId;
             copyButton.addActionListener(e -> {
                 String codeToCopy = codeSnippets.get(snippetId);
@@ -245,50 +256,50 @@ public class AiChatPanel extends JPanel {
                     StringSelection selection = new StringSelection(codeToCopy);
                     Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
                     clipboard.setContents(selection, selection);
-                    
+
                     // Change button text temporarily
                     copyButton.setText("Copied!");
                     copyButton.setBackground(new Color(33, 150, 243));
-                    copyButton.setForeground(Color.BLACK); 
-                    
+                    copyButton.setForeground(Color.BLACK);
+
                     // Reset button text after delay
                     Timer timer = new Timer(2000, evt -> {
                         copyButton.setText("Copy");
                         copyButton.setBackground(new Color(76, 175, 80));
-                        copyButton.setForeground(Color.BLACK); 
+                        copyButton.setForeground(Color.BLACK);
                     });
                     timer.setRepeats(false);
                     timer.start();
                 }
             });
-            
+
             headerPanel.add(languageLabel, BorderLayout.WEST);
             headerPanel.add(copyButton, BorderLayout.EAST);
-            
+
             // Insert the header panel as a component
             int headerPos = doc.getLength();
             doc.insertString(headerPos, " ", null); // Placeholder for component
-            
+
             // Add the component to the document
             StyleConstants.setComponent(codeHeaderStyle, headerPanel);
             doc.setCharacterAttributes(headerPos, 1, codeHeaderStyle, false);
-            
+
             // Insert the code content with code styling
             SimpleAttributeSet codeStyle = new SimpleAttributeSet();
             StyleConstants.setBackground(codeStyle, new Color(245, 245, 245));
             StyleConstants.setFontFamily(codeStyle, "Monospaced");
             StyleConstants.setFontSize(codeStyle, 12);
-            
+
             // Add the code content in a bordered area
             doc.insertString(doc.getLength(), "\n" + codeContent + "\n", codeStyle);
-            
+
             // Insert a newline after the code block
-            doc.insertString(doc.getLength(), "\n", null);
-            
+            // doc.insertString(doc.getLength(), "\n", null);
+
             // Update lastEnd for the next iteration
             lastEnd = matcher.end();
         }
-        
+
         // Add any remaining text after the last code block
         if (lastEnd < message.length()) {
             String textAfter = message.substring(lastEnd);
@@ -296,45 +307,45 @@ public class AiChatPanel extends JPanel {
                 processBasicMarkdown(doc, textAfter);
             }
         }
-        
+
         // Add extra newline at the end
         doc.insertString(doc.getLength(), "\n", null);
     }
-    
+
     private void processBasicMarkdown(StyledDocument doc, String text) throws BadLocationException {
         // This is a simple implementation of basic markdown
         // For a more complete solution, you might want to use a proper markdown parser
-        
+
         // Process the text line by line
         String[] lines = text.split("\n");
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
-            
+
             // Check for bold text (**text**)
             Matcher boldMatcher = Pattern.compile("\\*\\*(.*?)\\*\\*").matcher(line);
             StringBuffer sb = new StringBuffer();
-            
+
             while (boldMatcher.find()) {
                 String boldText = boldMatcher.group(1);
                 boldMatcher.appendReplacement(sb, "");
-                
+
                 // Add the text before the bold part
                 doc.insertString(doc.getLength(), sb.toString(), null);
                 sb.setLength(0);
-                
+
                 // Add the bold text
                 SimpleAttributeSet boldStyle = new SimpleAttributeSet();
                 StyleConstants.setBold(boldStyle, true);
                 doc.insertString(doc.getLength(), boldText, boldStyle);
             }
-            
+
             boldMatcher.appendTail(sb);
-            
+
             // Add any remaining text
             if (sb.length() > 0) {
                 doc.insertString(doc.getLength(), sb.toString(), null);
             }
-            
+
             // Add a newline unless it's the last line
             if (i < lines.length - 1) {
                 doc.insertString(doc.getLength(), "\n", null);
