@@ -138,7 +138,7 @@ public class AiChatPanel extends JPanel {
         headerPanel.setBackground(new Color(240, 240, 240));
         
         // Add a title to the left side of the header panel
-        JLabel titleLabel = new JLabel("JMeter Agent");
+        JLabel titleLabel = new JLabel("Feather Wand - JMeter Agent");
         titleLabel.setFont(new Font(titleLabel.getFont().getName(), Font.BOLD, 14));
         headerPanel.add(titleLabel, BorderLayout.WEST);
         

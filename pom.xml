@@ -8,7 +8,7 @@
     <artifactId>jmeter-agent</artifactId>
     <version>1.0.1</version>
     <name>jmeter-agent</name>
-    <description>JMeter Agent for performance engineers</description>
+    <description>Feather Wand - JMeter Agent for performance engineers</description>
     <licenses>
         <license>
             <name>The Apache Software License, Version 2.0</name>

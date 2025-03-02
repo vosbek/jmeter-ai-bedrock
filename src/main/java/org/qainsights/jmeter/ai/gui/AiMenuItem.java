@@ -99,23 +99,26 @@ public class AiMenuItem extends JMenuItem implements ActionListener{
         if (guiPackage != null) {
             MainFrame mainFrame = guiPackage.getMainFrame();
             
-            if (currentChatPanel != null && currentChatPanel.isShowing()) {
+            if (currentChatPanel != null && splitPane != null && splitPane.isShowing()) {
                 // Panel is currently shown, remove it
-                if (splitPane != null) {
-                    Container contentPane = mainFrame.getContentPane();
-                    contentPane.remove(splitPane);
-                    // Restore the original components
-                    for (Component comp : splitPane.getComponents()) {
-                        if (comp != currentChatPanel) {
-                            contentPane.add(comp, BorderLayout.CENTER);
-                        }
-                    }
-                }
+                Container contentPane = mainFrame.getContentPane();
+                contentPane.remove(splitPane);
+                
+                // Get the left component (main JMeter component) from the split pane
+                Component mainComponent = splitPane.getLeftComponent();
+                
+                // Add it back to the content pane
+                contentPane.add(mainComponent, BorderLayout.CENTER);
+                
+                // Clear references
+                splitPane = null;
+                log.info("AI Chat Panel hidden");
             } else {
                 // Panel is not shown, add it
                 if (currentChatPanel == null) {
                     // Only create a new panel if one doesn't exist
                     currentChatPanel = new AiChatPanel();
+                    log.info("Created new AI Chat Panel");
                 }
                 
                 // Get the current center component
@@ -139,8 +142,14 @@ public class AiMenuItem extends JMenuItem implements ActionListener{
                     splitPane.setOneTouchExpandable(true);
                     splitPane.setContinuousLayout(true);
                     
+                    // Set divider location to give appropriate space to the chat panel
+                    int preferredWidth = currentChatPanel.getPreferredSize().width;
+                    int totalWidth = mainFrame.getWidth();
+                    splitPane.setDividerLocation(totalWidth - preferredWidth - 10);
+                    
                     // Add the split pane to the content pane
                     contentPane.add(splitPane, BorderLayout.CENTER);
+                    log.info("AI Chat Panel displayed");
                 }
             }
             
