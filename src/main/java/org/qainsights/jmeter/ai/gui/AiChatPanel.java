@@ -1,45 +1,34 @@
 package org.qainsights.jmeter.ai.gui;
 
-import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
-import java.awt.Font;
-import java.awt.GridLayout;
-import java.awt.Insets;
-import java.awt.Toolkit;
+import org.qainsights.jmeter.ai.service.ClaudeService;
+import org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler;
+import org.qainsights.jmeter.ai.utils.Models;
+
+import org.apache.jmeter.gui.GuiPackage;
+import org.apache.jmeter.gui.tree.JMeterTreeNode;
+import org.apache.jmeter.testelement.TestElement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.swing.*;
+import javax.swing.border.*;
+import javax.swing.text.*;
+import javax.swing.tree.*;
+import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.event.*;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.swing.BorderFactory;
-import org.qainsights.jmeter.ai.service.ClaudeService;
-import org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler;
-import org.qainsights.jmeter.ai.utils.Models;
 import com.anthropic.models.ModelInfo;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import javax.swing.*;
-import javax.swing.text.*;
-import javax.swing.border.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.util.HashSet;
-import java.util.Set;
-import org.apache.jmeter.gui.GuiPackage;
-import org.apache.jmeter.gui.tree.JMeterTreeNode;
-import org.apache.jmeter.testelement.TestElement;
-import javax.swing.tree.TreeNode;
-import java.util.Enumeration;
 
 public class AiChatPanel extends JPanel {
     private JTextPane chatArea;
@@ -635,6 +624,9 @@ public class AiChatPanel extends JPanel {
             // Process the request
             String response = JMeterElementRequestHandler.processElementRequest(request);
             
+            // Select the newly added element
+            selectLastAddedElement();
+
             // Process the response
             processAiResponse(response);
         });
@@ -643,17 +635,45 @@ public class AiChatPanel extends JPanel {
     }
     
     /**
+     * Selects the last added element in the test plan
+     */
+    private void selectLastAddedElement() {
+        log.info("Selecting last added element");
+        
+        try {
+            GuiPackage guiPackage = GuiPackage.getInstance();
+            if (guiPackage == null) {
+                log.warn("Cannot select element: GuiPackage is null");
+                return;
+            }
+            
+            JMeterTreeNode currentNode = guiPackage.getTreeListener().getCurrentNode();
+            if (currentNode == null) {
+                log.warn("Cannot select element: Current node is null");
+                return;
+            }
+            
+            // If the current node has children, select the last child
+            if (currentNode.getChildCount() > 0) {
+                JMeterTreeNode lastChild = (JMeterTreeNode) currentNode.getChildAt(currentNode.getChildCount() - 1);
+                // Use setSelectionPath instead of selectNode
+                guiPackage.getTreeListener().getJTree().setSelectionPath(new TreePath(lastChild.getPath()));
+                log.info("Selected last child of current node: {}", lastChild.getName());
+            } else {
+                log.info("Current node has no children to select");
+            }
+        } catch (Exception e) {
+            log.error("Error selecting last added element", e);
+        }
+    }
+    
+    /**
      * Suggests related elements after adding an element
      */
     private void suggestRelatedElements() {
-        // Get the currently selected node in the test plan
-        GuiPackage guiPackage = GuiPackage.getInstance();
-        if (guiPackage == null) {
-            log.warn("GuiPackage is null, cannot suggest related elements");
-            return;
-        }
+        // Get the currently selected node from JMeter
+        JMeterTreeNode selectedNode = GuiPackage.getInstance().getTreeListener().getCurrentNode();
         
-        JMeterTreeNode selectedNode = guiPackage.getTreeListener().getCurrentNode();
         if (selectedNode == null) {
             log.warn("No node selected in test plan, cannot suggest related elements");
             return;
@@ -1236,6 +1256,13 @@ public class AiChatPanel extends JPanel {
      */
     private String getAiResponse(String message) {
         log.info("Getting AI response for message: {}", message);
+        
+        // Check if this is a request for a performance test plan
+        String performanceTestPlanResponse = JMeterElementRequestHandler.processPerformanceTestPlanRequest(message);
+        if (performanceTestPlanResponse != null) {
+            log.info("Detected performance test plan request, returning structured response");
+            return performanceTestPlanResponse;
+        }
         
         // Get the currently selected model from the dropdown
         ModelInfo selectedModel = (ModelInfo) modelSelector.getSelectedItem();

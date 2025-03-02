@@ -139,6 +139,11 @@ public class JMeterElementRequestHandler {
         if (response != null) {
             return response;
         }
+        
+        response = processPerformanceTestPlanRequest(message);
+        if (response != null) {
+            return response;
+        }
 
         // No element request detected
         return null;
@@ -438,8 +443,15 @@ public class JMeterElementRequestHandler {
                     // Expand the current node to show the newly added element
                     guiPackage.getMainFrame().getTree().expandPath(new javax.swing.tree.TreePath(currentNode.getPath()));
                     log.info("Successfully expanded node: {}", currentNode.getName());
+                    
+                    // Select the newly added element (last child of current node)
+                    if (currentNode.getChildCount() > 0) {
+                        JMeterTreeNode lastChild = (JMeterTreeNode) currentNode.getChildAt(currentNode.getChildCount() - 1);
+                        guiPackage.getTreeListener().getJTree().setSelectionPath(new javax.swing.tree.TreePath(lastChild.getPath()));
+                        log.info("Selected newly added element: {}", lastChild.getName());
+                    }
                 } catch (Exception e) {
-                    log.error("Failed to expand node", e);
+                    log.error("Failed to expand node or select element", e);
                     // Not returning an error here as the element was still added successfully
                 }
             }
@@ -2792,5 +2804,82 @@ public class JMeterElementRequestHandler {
         elementTypeMap.put("Aggregate Report", "aggregatereport");
         
         return elementTypeMap;
+    }
+
+    /**
+     * Processes a user message to determine if it's requesting to create a performance test plan.
+     * 
+     * @param userMessage The user's message
+     * @return A response message, or null if the message is not a request to create a performance test plan
+     */
+    public static String processPerformanceTestPlanRequest(String userMessage) {
+        if (userMessage == null || userMessage.trim().isEmpty()) {
+            return null;
+        }
+
+        // Check if the message is about creating a performance test plan
+        String normalized = userMessage.toLowerCase().trim();
+        if (normalized.contains("performance test plan") || 
+            (normalized.contains("performance") && normalized.contains("test") && normalized.contains("plan")) ||
+            (normalized.contains("create") && normalized.contains("performance") && normalized.contains("test"))) {
+            
+            log.info("Detected request to create a performance test plan: {}", userMessage);
+            
+            // Get the currently selected node to provide context-aware guidance
+            GuiPackage guiPackage = GuiPackage.getInstance();
+            JMeterTreeNode currentNode = null;
+            if (guiPackage != null) {
+                currentNode = guiPackage.getTreeListener().getCurrentNode();
+            }
+            
+            StringBuilder response = new StringBuilder();
+            response.append("Here's how to create a performance test plan in JMeter:\n\n");
+            
+            // Check if we need to create a test plan first
+            boolean testPlanExists = false;
+            if (currentNode != null) {
+                String nodeType = currentNode.getTestElement().getClass().getSimpleName();
+                testPlanExists = nodeType.equals("TestPlan") || hasParentOfType(currentNode, "TestPlan");
+            }
+            
+            if (!testPlanExists) {
+                response.append("1. **First, create a Test Plan**: This is the container for all test elements.\n");
+            }
+            
+            response.append("2. **Add a Thread Group**: This represents your users and controls the number of concurrent users, ramp-up period, and loop count.\n");
+            response.append("3. **Add HTTP Request samplers**: These define the requests your virtual users will make to the server.\n");
+            response.append("4. **Add Assertions**: These validate that the responses meet your expectations (e.g., Response Assertion, JSON Path Assertion).\n");
+            response.append("5. **Add Timers**: These add delays between requests to simulate realistic user behavior (e.g., Constant Timer, Uniform Random Timer).\n");
+            response.append("6. **Add Listeners**: These collect and display test results (e.g., View Results Tree, Aggregate Report).\n\n");
+            
+            response.append("I'll show you some suggested elements that you can add to your test plan based on your current selection.");
+            
+            return response.toString();
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Checks if a node has a parent of the specified type.
+     * 
+     * @param node The node to check
+     * @param type The type to look for
+     * @return True if the node has a parent of the specified type, false otherwise
+     */
+    private static boolean hasParentOfType(JMeterTreeNode node, String type) {
+        if (node == null) {
+            return false;
+        }
+        
+        JMeterTreeNode parent = (JMeterTreeNode) node.getParent();
+        while (parent != null) {
+            if (parent.getTestElement().getClass().getSimpleName().equals(type)) {
+                return true;
+            }
+            parent = (JMeterTreeNode) parent.getParent();
+        }
+        
+        return false;
     }
 }
