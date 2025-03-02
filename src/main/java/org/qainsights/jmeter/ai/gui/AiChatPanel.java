@@ -221,12 +221,12 @@ public class AiChatPanel extends JPanel {
             // Create a style for the welcome message
             SimpleAttributeSet welcomeStyle = new SimpleAttributeSet();
             StyleConstants.setForeground(welcomeStyle, new Color(100, 100, 100));
-            StyleConstants.setItalic(welcomeStyle, true);
             StyleConstants.setAlignment(welcomeStyle, StyleConstants.ALIGN_CENTER);
             
             // Add the welcome message
             doc.insertString(doc.getLength(), "New conversation started\n", welcomeStyle);
-            doc.insertString(doc.getLength(), "Type your message below and press Enter to send\n\n", welcomeStyle);
+            doc.insertString(doc.getLength(), "Type your message below and press Enter to send\n", welcomeStyle);
+            doc.insertString(doc.getLength(), "AI can make mistakes, please verify the response\n", welcomeStyle);
             
             // Apply paragraph alignment
             doc.setParagraphAttributes(0, doc.getLength(), welcomeStyle, false);

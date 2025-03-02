@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.event.ActionEvent;
+import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.Map;
 import javax.swing.tree.TreePath;
@@ -103,10 +104,11 @@ public class JMeterElementManager {
             if (normalizedType.equals("httpsampler")) {
                 log.info("Special handling for HTTP sampler");
                 try {
-                    // Create the GUI component first
+                    // Create the GUI component first using reflection
                     Class<?> guiClass = Class.forName("org.apache.jmeter.protocol.http.control.gui.HttpTestSampleGui");
-                    JMeterGUIComponent guiComponent = (JMeterGUIComponent) guiClass.getDeclaredConstructor()
-                            .newInstance();
+                    Constructor<?> constructor = guiClass.getDeclaredConstructor();
+                    constructor.setAccessible(true);
+                    JMeterGUIComponent guiComponent = (JMeterGUIComponent) constructor.newInstance();
                     log.info("Successfully created HTTP sampler GUI component: {}", guiComponent.getClass().getName());
 
                     // Create the model element from the GUI component
@@ -154,35 +156,30 @@ public class JMeterElementManager {
             if (normalizedType.equals("csvdataset")) {
                 log.info("Special handling for CSV Data Set");
                 try {
-                    // Create the model element first
-                    Class<?> modelClass = Class.forName("org.apache.jmeter.config.CSVDataSet");
-                    TestElement newElement = (TestElement) modelClass.getDeclaredConstructor().newInstance();
-                    log.info("Successfully created CSV Data Set model element: {}", newElement.getClass().getName());
+                    // Create the CSV Data Set directly
+                    TestElement csvDataSet = (TestElement) Class.forName("org.apache.jmeter.config.CSVDataSet").getDeclaredConstructor().newInstance();
+                    csvDataSet.setName(elementName != null && !elementName.isEmpty() ? elementName : "CSV Data Set");
 
-                    // Set a name for the element
-                    if (elementName != null && !elementName.isEmpty()) {
-                        newElement.setName(elementName);
-                    } else {
-                        // Use a default name
-                        newElement.setName("CSV Data Set");
-                    }
+                    // Set the required properties for TestElement
+                    csvDataSet.setProperty(TestElement.TEST_CLASS, "org.apache.jmeter.config.CSVDataSet");
+                    csvDataSet.setProperty(TestElement.GUI_CLASS, "org.apache.jmeter.testbeans.gui.TestBeanGUI");
 
-                    // Initialize the TestBean properties
-                    newElement.setProperty("filename", "");
-                    newElement.setProperty("fileEncoding", "");
-                    newElement.setProperty("ignoreFirstLine", false);
-                    newElement.setProperty("quotedData", false);
-                    newElement.setProperty("delimiter", ",");
-                    newElement.setProperty("variableNames", "");
-                    newElement.setProperty("ignoreBlankLines", false);
-                    newElement.setProperty("recycle", false);
-                    newElement.setProperty("stopThread", false);
+                    // Configure the CSV Data Set properties
+                    csvDataSet.setProperty("filename", "");
+                    csvDataSet.setProperty("fileEncoding", "UTF-8");
+                    csvDataSet.setProperty("variableNames", "");
+                    csvDataSet.setProperty("delimiter", ",");
+                    csvDataSet.setProperty("quotedData", false);
+                    csvDataSet.setProperty("recycle", true);
+                    csvDataSet.setProperty("stopThread", false);
+                    csvDataSet.setProperty("shareMode", "shareMode.all");
+                    csvDataSet.setProperty("ignoreFirstLine", false);
 
                     log.info("Adding CSV Data Set to node: {}", currentNode.getName());
 
                     // Add the element to the test plan
                     try {
-                        guiPackage.getTreeModel().addComponent(newElement, currentNode);
+                        guiPackage.getTreeModel().addComponent(csvDataSet, currentNode);
                         log.info("Successfully added CSV Data Set to the tree model");
 
                         // Configure the GUI for the new element
@@ -223,7 +220,9 @@ public class JMeterElementManager {
                 log.info("Approach 1: Trying to create element using MenuFactory");
                 Class<?> guiClass = Class.forName(className);
                 log.info("Found GUI class: {}", guiClass.getName());
-                JMeterGUIComponent guiComponent = (JMeterGUIComponent) guiClass.getDeclaredConstructor().newInstance();
+                Constructor<?> constructor = guiClass.getDeclaredConstructor();
+                constructor.setAccessible(true);
+                JMeterGUIComponent guiComponent = (JMeterGUIComponent) constructor.newInstance();
                 log.info("Created GUI component: {}", guiComponent.getClass().getName());
 
                 // Get the test element from the GUI component
@@ -249,7 +248,9 @@ public class JMeterElementManager {
                         if (modelClassName != null) {
                             Class<?> modelClass = Class.forName(modelClassName);
                             log.info("Found model class: {}", modelClass.getName());
-                            newElement = (TestElement) modelClass.getDeclaredConstructor().newInstance();
+                            Constructor<?> constructor = modelClass.getDeclaredConstructor();
+                            constructor.setAccessible(true);
+                            newElement = (TestElement) constructor.newInstance();
                             log.info("Successfully created element via direct model instantiation: {}",
                                     newElement.getClass().getName());
                         } else {
@@ -302,7 +303,8 @@ public class JMeterElementManager {
     /**
      * Checks if the test plan is ready for operations.
      * 
-     * @return A TestPlanStatus object indicating if the test plan is ready and any error message
+     * @return A TestPlanStatus object indicating if the test plan is ready and any
+     *         error message
      */
     public static TestPlanStatus isTestPlanReady() {
         GuiPackage guiPackage = GuiPackage.getInstance();
@@ -321,7 +323,8 @@ public class JMeterElementManager {
     /**
      * Ensures that a test plan exists, creating one if necessary.
      * 
-     * @return true if a test plan exists or was created successfully, false otherwise
+     * @return true if a test plan exists or was created successfully, false
+     *         otherwise
      */
     public static boolean ensureTestPlanExists() {
         GuiPackage guiPackage = GuiPackage.getInstance();
