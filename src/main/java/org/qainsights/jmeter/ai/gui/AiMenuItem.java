@@ -16,6 +16,7 @@ public class AiMenuItem extends JMenuItem implements ActionListener{
     private static final Logger log = LoggerFactory.getLogger(AiMenuItem.class);
     private static final Action vtg = new AI();
     private AiChatPanel currentChatPanel;
+    private JSplitPane splitPane;
 
     public AiMenuItem() {
         super(vtg);
@@ -100,14 +101,47 @@ public class AiMenuItem extends JMenuItem implements ActionListener{
             
             if (currentChatPanel != null && currentChatPanel.isShowing()) {
                 // Panel is currently shown, remove it
-                mainFrame.getContentPane().remove(currentChatPanel);
+                if (splitPane != null) {
+                    Container contentPane = mainFrame.getContentPane();
+                    contentPane.remove(splitPane);
+                    // Restore the original components
+                    for (Component comp : splitPane.getComponents()) {
+                        if (comp != currentChatPanel) {
+                            contentPane.add(comp, BorderLayout.CENTER);
+                        }
+                    }
+                }
             } else {
                 // Panel is not shown, add it
                 if (currentChatPanel == null) {
                     // Only create a new panel if one doesn't exist
                     currentChatPanel = new AiChatPanel();
                 }
-                mainFrame.getContentPane().add(currentChatPanel, BorderLayout.EAST);
+                
+                // Get the current center component
+                Container contentPane = mainFrame.getContentPane();
+                Component centerComp = null;
+                for (Component comp : contentPane.getComponents()) {
+                    if (contentPane.getLayout() instanceof BorderLayout && 
+                        ((BorderLayout)contentPane.getLayout()).getConstraints(comp) == BorderLayout.CENTER) {
+                        centerComp = comp;
+                        break;
+                    }
+                }
+                
+                if (centerComp != null) {
+                    // Remove the center component
+                    contentPane.remove(centerComp);
+                    
+                    // Create a split pane with the center component and chat panel
+                    splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, centerComp, currentChatPanel);
+                    splitPane.setResizeWeight(0.7); // Give more space to the main component
+                    splitPane.setOneTouchExpandable(true);
+                    splitPane.setContinuousLayout(true);
+                    
+                    // Add the split pane to the content pane
+                    contentPane.add(splitPane, BorderLayout.CENTER);
+                }
             }
             
             mainFrame.revalidate();

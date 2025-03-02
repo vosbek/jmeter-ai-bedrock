@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,6 +34,11 @@ public class AiChatPanel extends JPanel {
     // Pattern to match code blocks in markdown (```language code ```)
     private static final Pattern CODE_BLOCK_PATTERN = Pattern.compile("```([\\w-]*)\\s*([\\s\\S]*?)```");
 
+    // Pattern to match JMeter element suggestions in AI responses
+    private static final Pattern ELEMENT_SUGGESTION_PATTERN = Pattern.compile(
+        "(?i)(?:add|create|use|include)\\s+(?:a|an)?\\s+([a-z\\s-]+?)(?:\\s+(?:called|named|with name|with the name)?\\s+[\"']?([^\"']+?)[\"']?)?(?:\\s*$|\\s+(?:to|in|for)\\b)"
+    );
+
     // Map to store code snippets for copying
     private Map<String, String> codeSnippets = new HashMap<>();
 
@@ -39,6 +46,7 @@ public class AiChatPanel extends JPanel {
         claudeService = new ClaudeService();
         setLayout(new BorderLayout());
         setPreferredSize(new Dimension(400, 600));
+        setMinimumSize(new Dimension(300, 400));
         
         // Add a margin around the entire panel
         setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
@@ -311,6 +319,9 @@ public class AiChatPanel extends JPanel {
                 // Process the rest of the message for markdown
                 String claudeMessage = message.substring("Claude: ".length());
                 processMarkdownMessage(doc, claudeMessage);
+                
+                // Parse the Claude message for element suggestions and create buttons
+                createElementButtons(claudeMessage);
             } else {
                 // For user messages or non-markdown messages
                 doc.insertString(doc.getLength(), message + "\n", senderStyle);
@@ -492,5 +503,493 @@ public class AiChatPanel extends JPanel {
                 doc.insertString(doc.getLength(), "\n", defaultStyle);
             }
         }
+    }
+
+    private void createElementButtons(String message) {
+        log.info("Parsing AI response for element suggestions: {}", message);
+        
+        // Create a panel to hold the buttons
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.Y_AXIS));
+        buttonPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 1, 0, new Color(200, 200, 200)),
+            BorderFactory.createEmptyBorder(10, 5, 10, 5)
+        ));
+        buttonPanel.setBackground(new Color(245, 245, 245));
+        
+        // Add a label to the panel
+        JLabel titleLabel = new JLabel("Available Elements to Add:");
+        titleLabel.setFont(new Font(titleLabel.getFont().getName(), Font.BOLD, 12));
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        buttonPanel.add(titleLabel);
+        buttonPanel.add(Box.createVerticalStrut(5));
+        
+        // Create a panel for the buttons with a GridLayout (2 columns)
+        JPanel gridPanel = new JPanel(new GridLayout(0, 2, 5, 5));
+        gridPanel.setBackground(new Color(245, 245, 245));
+        gridPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        // Find all element suggestions in the message
+        Matcher matcher = ELEMENT_SUGGESTION_PATTERN.matcher(message);
+        boolean foundSuggestions = false;
+        Set<String> addedElements = new HashSet<>(); // To avoid duplicate buttons
+        int buttonCount = 0; // Counter for the number of buttons added
+        final int MAX_BUTTONS = 4; // Maximum number of buttons to display
+        
+        log.info("Looking for element suggestions in message...");
+        while (matcher.find() && buttonCount < MAX_BUTTONS) {
+            String elementType = matcher.group(1).trim().toLowerCase();
+            String elementName = matcher.group(2);
+            
+            log.info("Found element suggestion: type={}, name={}", elementType, elementName);
+            
+            // Skip if we've already added a button for this element type
+            if (addedElements.contains(elementType)) {
+                log.info("Skipping duplicate element: {}", elementType);
+                continue;
+            }
+            
+            // Map the element type to a normalized type
+            String normalizedType = mapToNormalizedElementType(elementType);
+            if (normalizedType == null) {
+                // Skip if we couldn't map the element type
+                log.info("Could not map element type to normalized type: {}", elementType);
+                continue;
+            }
+            
+            log.info("Mapped element type {} to normalized type {}", elementType, normalizedType);
+            
+            foundSuggestions = true;
+            addedElements.add(elementType);
+            
+            // Create a button for the element
+            JButton addButton = createElementButton(formatElementType(elementType), normalizedType, elementName);
+            
+            // Add the button to the panel
+            gridPanel.add(addButton);
+            buttonCount++;
+            log.info("Added button for element: {}", elementType);
+        }
+        
+        // If no suggestions were found in the message, create some example buttons for common elements
+        if (!foundSuggestions && (message.toLowerCase().contains("test plan") || message.toLowerCase().contains("jmeter"))) {
+            log.info("No element suggestions found, creating example buttons");
+            
+            // Create example buttons for common elements
+            createExampleButtons(gridPanel);
+            foundSuggestions = true;
+        }
+        
+        // Add the grid panel to the main panel
+        buttonPanel.add(gridPanel);
+        
+        // If we found suggestions, add the button panel to the chat area
+        if (foundSuggestions) {
+            log.info("Found element suggestions, adding button panel to chat area");
+            try {
+                StyledDocument doc = chatArea.getStyledDocument();
+                
+                // Insert a placeholder for the component
+                int pos = doc.getLength();
+                doc.insertString(pos, " ", new SimpleAttributeSet());
+                
+                // Create a style for the component
+                SimpleAttributeSet componentStyle = new SimpleAttributeSet();
+                StyleConstants.setComponent(componentStyle, buttonPanel);
+                
+                // Apply the style to the placeholder
+                doc.setCharacterAttributes(pos, 1, componentStyle, false);
+                
+                // Add a newline after the buttons
+                doc.insertString(doc.getLength(), "\n", new SimpleAttributeSet());
+                
+                log.info("Successfully added element buttons to the chat area");
+            } catch (BadLocationException e) {
+                log.error("Error adding element buttons to chat", e);
+            }
+        } else {
+            log.info("No element suggestions found in message");
+        }
+    }
+    
+    /**
+     * Creates a styled button for a JMeter element
+     * 
+     * @param displayName The display name for the button
+     * @param normalizedType The normalized element type
+     * @param elementName The element name (can be null)
+     * @return The styled button
+     */
+    private JButton createElementButton(String displayName, String normalizedType, String elementName) {
+        JButton addButton = new JButton("Add " + displayName);
+        addButton.setFocusPainted(false);
+        addButton.setBackground(new Color(46, 125, 50)); // Darker green for better contrast
+        addButton.setForeground(Color.BLACK);
+        addButton.setFont(new Font(addButton.getFont().getName(), Font.BOLD, 12));
+        addButton.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(27, 94, 32), 1),
+            BorderFactory.createEmptyBorder(8, 10, 8, 10)
+        ));
+        
+        // Add action listener to add the element when clicked
+        addButton.addActionListener(e -> {
+            // Use the JMeterElementRequestHandler to add the element
+            String result = org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler.processElementRequest(
+                    "add " + normalizedType + (elementName != null ? " called " + elementName : ""));
+            
+            if (result != null) {
+                // Display the result in the chat area
+                appendToChat("System: " + result, new Color(0, 100, 0), false);
+            }
+        });
+        
+        return addButton;
+    }
+    
+    /**
+     * Suggests related elements after adding an element
+     * 
+     * @param addedElementType The type of element that was added
+     */
+    private void suggestRelatedElements(String addedElementType) {
+        // Create a panel to hold the buttons
+        JPanel suggestionPanel = new JPanel();
+        suggestionPanel.setLayout(new BoxLayout(suggestionPanel, BoxLayout.Y_AXIS));
+        suggestionPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 1, 0, new Color(200, 200, 200)),
+            BorderFactory.createEmptyBorder(10, 5, 10, 5)
+        ));
+        suggestionPanel.setBackground(new Color(240, 248, 255)); // Light blue background
+        
+        // Add a label to the panel
+        JLabel titleLabel = new JLabel("Suggested Elements to Add Next:");
+        titleLabel.setFont(new Font(titleLabel.getFont().getName(), Font.BOLD, 12));
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        suggestionPanel.add(titleLabel);
+        suggestionPanel.add(Box.createVerticalStrut(5));
+        
+        // Create a panel for the buttons with a GridLayout (2 columns)
+        JPanel gridPanel = new JPanel(new GridLayout(0, 2, 5, 5));
+        gridPanel.setBackground(new Color(240, 248, 255));
+        gridPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        
+        // Get related elements based on the added element type
+        String[][] relatedElements = getRelatedElements(addedElementType);
+        
+        if (relatedElements.length > 0) {
+            for (String[] element : relatedElements) {
+                String displayName = element[0];
+                String normalizedType = element[1];
+                
+                // Create a button for the element (with a different style)
+                JButton addButton = new JButton("Add " + displayName);
+                addButton.setFocusPainted(false);
+                addButton.setBackground(new Color(33, 150, 243)); // Blue for suggested elements
+                addButton.setForeground(Color.WHITE);
+                addButton.setFont(new Font(addButton.getFont().getName(), Font.BOLD, 12));
+                addButton.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(25, 118, 210), 1),
+                    BorderFactory.createEmptyBorder(8, 10, 8, 10)
+                ));
+                
+                // Add action listener to add the element when clicked
+                final String finalNormalizedType = normalizedType;
+                addButton.addActionListener(e -> {
+                    // Use the JMeterElementRequestHandler to add the element
+                    String result = org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler.processElementRequest(
+                            "add " + finalNormalizedType);
+                    
+                    if (result != null) {
+                        // Display the result in the chat area
+                        appendToChat("System: " + result, new Color(0, 100, 0), false);
+                    }
+                });
+                
+                // Add the button to the panel
+                gridPanel.add(addButton);
+            }
+            
+            // Add the grid panel to the main panel
+            suggestionPanel.add(gridPanel);
+            
+            try {
+                StyledDocument doc = chatArea.getStyledDocument();
+                
+                // Insert a placeholder for the component
+                int pos = doc.getLength();
+                doc.insertString(pos, " ", new SimpleAttributeSet());
+                
+                // Create a style for the component
+                SimpleAttributeSet componentStyle = new SimpleAttributeSet();
+                StyleConstants.setComponent(componentStyle, suggestionPanel);
+                
+                // Apply the style to the placeholder
+                doc.setCharacterAttributes(pos, 1, componentStyle, false);
+                
+                // Add a newline after the buttons
+                doc.insertString(doc.getLength(), "\n", new SimpleAttributeSet());
+                
+                log.info("Added suggested elements after adding {}", addedElementType);
+            } catch (BadLocationException e) {
+                log.error("Error adding suggested elements to chat", e);
+            }
+        }
+    }
+    
+    /**
+     * Gets related elements based on the added element type
+     * 
+     * @param addedElementType The type of element that was added
+     * @return Array of related elements [display name, normalized type]
+     */
+    private String[][] getRelatedElements(String addedElementType) {
+        switch (addedElementType.toLowerCase()) {
+            case "threadgroup":
+                return new String[][] {
+                    {"HTTP Sampler", "httpsampler"},
+                    {"Loop Controller", "loopcontroller"},
+                    {"CSV Data Set", "csvdataset"},
+                    {"Constant Timer", "constanttimer"}
+                };
+            case "httpsampler":
+                return new String[][] {
+                    {"Response Assertion", "responseassert"},
+                    {"JSON Path Extractor", "jsonpathextractor"},
+                    {"Constant Timer", "constanttimer"},
+                    {"View Results Tree", "viewresultstree"}
+                };
+            case "loopcontroller":
+                return new String[][] {
+                    {"HTTP Sampler", "httpsampler"},
+                    {"If Controller", "ifcontroller"},
+                    {"Transaction Controller", "transactioncontroller"}
+                };
+            case "csvdataset":
+                return new String[][] {
+                    {"HTTP Sampler", "httpsampler"},
+                    {"HTTP Header Manager", "headermanager"}
+                };
+            case "responseassert":
+            case "jsonassertion":
+            case "durationassertion":
+            case "sizeassertion":
+            case "xpathassertion":
+                return new String[][] {
+                    {"View Results Tree", "viewresultstree"},
+                    {"Aggregate Report", "aggregatereport"}
+                };
+            case "constanttimer":
+            case "uniformrandomtimer":
+            case "gaussianrandomtimer":
+            case "poissonrandomtimer":
+                return new String[][] {
+                    {"HTTP Sampler", "httpsampler"},
+                    {"Response Assertion", "responseassert"}
+                };
+            case "regexextractor":
+            case "xpathextractor":
+            case "jsonpathextractor":
+            case "boundaryextractor":
+                return new String[][] {
+                    {"Response Assertion", "responseassert"},
+                    {"If Controller", "ifcontroller"}
+                };
+            case "viewresultstree":
+            case "aggregatereport":
+                return new String[][] {
+                    {"Response Assertion", "responseassert"},
+                    {"Duration Assertion", "durationassertion"}
+                };
+            default:
+                return new String[0][0];
+        }
+    }
+    
+    /**
+     * Creates example buttons for common JMeter elements
+     * 
+     * @param panel The panel to add the buttons to
+     */
+    private void createExampleButtons(JPanel panel) {
+        // Common JMeter elements - limit to 4 buttons (2 rows of 2 buttons)
+        String[][] elements = {
+            {"Thread Group", "threadgroup"},
+            {"HTTP Sampler", "httpsampler"},
+            {"CSV Data Set", "csvdataset"},
+            {"Loop Controller", "loopcontroller"}
+        };
+        
+        for (String[] element : elements) {
+            String displayName = element[0];
+            String normalizedType = element[1];
+            
+            // Create a button for the element
+            JButton addButton = createElementButton(displayName, normalizedType, null);
+            
+            // Add the button to the panel
+            panel.add(addButton);
+            log.info("Added example button for element: {}", displayName);
+        }
+    }
+    
+    /**
+     * Maps a user-friendly element type to a normalized type that JMeter understands
+     * 
+     * @param elementType The user-friendly element type
+     * @return The normalized element type, or null if not recognized
+     */
+    private String mapToNormalizedElementType(String elementType) {
+        elementType = elementType.toLowerCase();
+        log.info("Trying to map element type: {}", elementType);
+        
+        // Generic element types
+        if (elementType.contains("sampler")) {
+            if (elementType.contains("http")) {
+                return "httpsampler";
+            }
+            // Default to HTTP sampler if no specific type is mentioned
+            return "httpsampler";
+        }
+        
+        if (elementType.contains("controller")) {
+            if (elementType.contains("loop")) {
+                return "loopcontroller";
+            }
+            if (elementType.contains("if")) {
+                return "ifcontroller";
+            }
+            if (elementType.contains("while")) {
+                return "whilecontroller";
+            }
+            if (elementType.contains("transaction")) {
+                return "transactioncontroller";
+            }
+            if (elementType.contains("runtime")) {
+                return "runtimecontroller";
+            }
+            // Default to loop controller if no specific type is mentioned
+            return "loopcontroller";
+        }
+        
+        if (elementType.contains("timer")) {
+            if (elementType.contains("constant")) {
+                return "constanttimer";
+            }
+            if (elementType.contains("uniform")) {
+                return "uniformrandomtimer";
+            }
+            if (elementType.contains("gaussian")) {
+                return "gaussianrandomtimer";
+            }
+            if (elementType.contains("poisson")) {
+                return "poissonrandomtimer";
+            }
+            // Default to constant timer if no specific type is mentioned
+            return "constanttimer";
+        }
+        
+        if (elementType.contains("assertion")) {
+            if (elementType.contains("response")) {
+                return "responseassert";
+            }
+            if (elementType.contains("json")) {
+                return "jsonassertion";
+            }
+            if (elementType.contains("duration")) {
+                return "durationassertion";
+            }
+            if (elementType.contains("size")) {
+                return "sizeassertion";
+            }
+            if (elementType.contains("xpath")) {
+                return "xpathassertion";
+            }
+            // Default to response assertion if no specific type is mentioned
+            return "responseassert";
+        }
+        
+        if (elementType.contains("extractor")) {
+            if (elementType.contains("regex")) {
+                return "regexextractor";
+            }
+            if (elementType.contains("xpath")) {
+                return "xpathextractor";
+            }
+            if (elementType.contains("json")) {
+                return "jsonpathextractor";
+            }
+            if (elementType.contains("boundary")) {
+                return "boundaryextractor";
+            }
+            // Default to regex extractor if no specific type is mentioned
+            return "regexextractor";
+        }
+        
+        if (elementType.contains("listener")) {
+            if (elementType.contains("view") && elementType.contains("tree")) {
+                return "viewresultstree";
+            }
+            if (elementType.contains("aggregate")) {
+                return "aggregatereport";
+            }
+            // Default to view results tree if no specific type is mentioned
+            return "viewresultstree";
+        }
+        
+        // Specific element types
+        if (elementType.contains("thread") && elementType.contains("group")) {
+            return "threadgroup";
+        }
+        
+        if (elementType.contains("csv") || elementType.contains("data set")) {
+            return "csvdataset";
+        }
+        
+        if (elementType.contains("header") && elementType.contains("manager")) {
+            return "headermanager";
+        }
+        
+        // Try to match partial element types
+        if (elementType.contains("http")) {
+            return "httpsampler";
+        }
+        
+        if (elementType.contains("thread")) {
+            return "threadgroup";
+        }
+        
+        if (elementType.contains("csv")) {
+            return "csvdataset";
+        }
+        
+        if (elementType.contains("header")) {
+            return "headermanager";
+        }
+        
+        // If we couldn't match the element type, return null
+        log.info("Could not map element type: {}", elementType);
+        return null;
+    }
+    
+    /**
+     * Formats an element type for display in the button
+     * 
+     * @param elementType The element type to format
+     * @return The formatted element type
+     */
+    private String formatElementType(String elementType) {
+        // Capitalize the first letter of each word
+        String[] words = elementType.split("\\s+");
+        StringBuilder result = new StringBuilder();
+        
+        for (String word : words) {
+            if (word.length() > 0) {
+                result.append(Character.toUpperCase(word.charAt(0)))
+                      .append(word.substring(1))
+                      .append(" ");
+            }
+        }
+        
+        return result.toString().trim();
     }
 }
