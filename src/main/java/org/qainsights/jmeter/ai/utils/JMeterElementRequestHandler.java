@@ -1,18 +1,18 @@
 package org.qainsights.jmeter.ai.utils;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.apache.jmeter.gui.GuiPackage;
 import org.apache.jmeter.gui.tree.JMeterTreeNode;
 import org.apache.jmeter.testelement.TestElement;
-import org.apache.jmeter.util.JMeterUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Utility class for handling natural language requests to add JMeter
@@ -418,7 +418,7 @@ public class JMeterElementRequestHandler {
         String validationError = validateElementPlacement(elementType);
         if (validationError != null) {
             log.error("Validation failed: {}", validationError);
-            return validationError;
+            return validationError + "\n\nI'll show you some suggested elements that you can add to your test plan.";
         }
 
         // Get the currently selected node before adding the element
@@ -2755,5 +2755,42 @@ public class JMeterElementRequestHandler {
 
         // No mapping found
         return null;
+    }
+
+    /**
+     * Gets a map of element display names to their normalized types
+     * 
+     * @return Map of element display names to normalized types
+     */
+    public static Map<String, String> getElementTypeMap() {
+        Map<String, String> elementTypeMap = new HashMap<>();
+        
+        // Add all supported element types
+        elementTypeMap.put("Thread Group", "threadgroup");
+        elementTypeMap.put("HTTP Request", "httprequest");
+        elementTypeMap.put("Loop Controller", "loopcontroller");
+        elementTypeMap.put("If Controller", "ifcontroller");
+        elementTypeMap.put("While Controller", "whilecontroller");
+        elementTypeMap.put("Transaction Controller", "transactioncontroller");
+        elementTypeMap.put("Runtime Controller", "runtimecontroller");
+        elementTypeMap.put("CSV Data Set Config", "csvdataset");
+        elementTypeMap.put("HTTP Header Manager", "headerManager");
+        elementTypeMap.put("Response Assertion", "responseassert");
+        elementTypeMap.put("JSON Path Assertion", "jsonpathassert");
+        elementTypeMap.put("Duration Assertion", "durationassert");
+        elementTypeMap.put("Size Assertion", "sizeassert");
+        elementTypeMap.put("XPath Assertion", "xpathassert");
+        elementTypeMap.put("Constant Timer", "constanttimer");
+        elementTypeMap.put("Uniform Random Timer", "uniformrandomtimer");
+        elementTypeMap.put("Gaussian Random Timer", "gaussianrandomtimer");
+        elementTypeMap.put("Poisson Random Timer", "poissonrandomtimer");
+        elementTypeMap.put("Regex Extractor", "regexextractor");
+        elementTypeMap.put("XPath Extractor", "xpathextractor");
+        elementTypeMap.put("JSON Path Extractor", "jsonpathextractor");
+        elementTypeMap.put("Boundary Extractor", "boundaryextractor");
+        elementTypeMap.put("View Results Tree", "viewresultstree");
+        elementTypeMap.put("Aggregate Report", "aggregatereport");
+        
+        return elementTypeMap;
     }
 }

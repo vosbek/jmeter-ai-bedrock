@@ -1,6 +1,29 @@
 package org.qainsights.jmeter.ai.gui;
 
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GridLayout;
+import java.awt.Insets;
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.swing.BorderFactory;
 import org.qainsights.jmeter.ai.service.ClaudeService;
+import org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler;
 import org.qainsights.jmeter.ai.utils.Models;
 import com.anthropic.models.ModelInfo;
 import org.slf4j.Logger;
@@ -8,19 +31,10 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.text.*;
 import javax.swing.border.*;
-import java.awt.*;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import org.apache.jmeter.gui.GuiPackage;
 import org.apache.jmeter.gui.tree.JMeterTreeNode;
 import org.apache.jmeter.testelement.TestElement;
@@ -29,7 +43,7 @@ import java.util.Enumeration;
 
 public class AiChatPanel extends JPanel {
     private JTextPane chatArea;
-    private JTextField inputField;
+    private JTextField messageField;
     private JButton sendButton;
     private List<String> conversationHistory;
     private ClaudeService claudeService;
@@ -50,8 +64,8 @@ public class AiChatPanel extends JPanel {
     public AiChatPanel() {
         claudeService = new ClaudeService();
         setLayout(new BorderLayout());
-        setPreferredSize(new Dimension(400, 600));
-        setMinimumSize(new Dimension(300, 400));
+        setPreferredSize(new Dimension(500, 600)); // Increased width for better readability
+        setMinimumSize(new Dimension(350, 400));
         
         // Add a margin around the entire panel
         setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
@@ -165,8 +179,17 @@ public class AiChatPanel extends JPanel {
         // Initialize chat area
         chatArea = new JTextPane();
         chatArea.setEditable(false);
-        // Use the system default font
-        chatArea.setFont(UIManager.getFont("TextField.font"));
+        // Use the system default font with larger size
+        Font defaultFont = UIManager.getFont("TextField.font");
+        Font largerFont = new Font(defaultFont.getFamily(), defaultFont.getStyle(), defaultFont.getSize() + 2);
+        chatArea.setFont(largerFont);
+        
+        // Set default paragraph attributes for left alignment
+        StyledDocument doc = chatArea.getStyledDocument();
+        SimpleAttributeSet leftAlign = new SimpleAttributeSet();
+        StyleConstants.setAlignment(leftAlign, StyleConstants.ALIGN_LEFT);
+        doc.setParagraphAttributes(0, doc.getLength(), leftAlign, false);
+        
         JScrollPane scrollPane = new JScrollPane(chatArea);
         scrollPane.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         chatPanel.add(scrollPane, BorderLayout.CENTER);
@@ -179,7 +202,8 @@ public class AiChatPanel extends JPanel {
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
         
         // Add model selector to the bottom panel
-        JPanel modelPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        FlowLayout flowLayout = new FlowLayout(FlowLayout.LEFT);
+        JPanel modelPanel = new JPanel(flowLayout);
         JLabel modelLabel = new JLabel("Model: ");
         modelPanel.add(modelLabel);
         modelPanel.add(modelSelector);
@@ -187,16 +211,16 @@ public class AiChatPanel extends JPanel {
         
         // Create input panel with text field and send button
         JPanel inputPanel = new JPanel(new BorderLayout(5, 0));
-        inputField = new JTextField();
+        messageField = new JTextField();
         sendButton = new JButton("Send");
-        inputPanel.add(inputField, BorderLayout.CENTER);
+        inputPanel.add(messageField, BorderLayout.CENTER);
         inputPanel.add(sendButton, BorderLayout.EAST);
         bottomPanel.add(inputPanel, BorderLayout.CENTER);
         
         add(bottomPanel, BorderLayout.SOUTH);
 
         sendButton.addActionListener(e -> sendMessage());
-        inputField.addActionListener(e -> sendMessage());
+        messageField.addActionListener(e -> sendMessage());
 
         conversationHistory = new ArrayList<>();
         
@@ -215,7 +239,7 @@ public class AiChatPanel extends JPanel {
         conversationHistory.clear();
         
         // Reset the input field
-        inputField.setText("");
+        messageField.setText("");
         
         // Display welcome message
         displayWelcomeMessage();
@@ -228,111 +252,86 @@ public class AiChatPanel extends JPanel {
      * Displays a welcome message in the chat area
      */
     private void displayWelcomeMessage() {
+        String welcomeMessage = "Welcome to Feather Wand - JMeter Agent!\n\n" +
+                "I can help you create and modify JMeter test plans. You can ask me to:\n" +
+                "- Add JMeter elements to your test plan\n" +
+                "- Optimize your test plan for better performance\n" +
+                "- Get help with JMeter best practices\n\n" +
+                "How can I assist you today?\n\n";
+        
+        // Create a style for the welcome message
+        SimpleAttributeSet welcomeStyle = new SimpleAttributeSet();
+        StyleConstants.setForeground(welcomeStyle, new Color(0, 51, 102)); // Dark blue for better contrast
+        StyleConstants.setAlignment(welcomeStyle, StyleConstants.ALIGN_LEFT);
+        
         try {
             StyledDocument doc = chatArea.getStyledDocument();
+            doc.insertString(doc.getLength(), welcomeMessage, welcomeStyle);
             
-            // Create a style for the welcome message
-            SimpleAttributeSet welcomeStyle = new SimpleAttributeSet();
-            StyleConstants.setForeground(welcomeStyle, new Color(100, 100, 100));
-            StyleConstants.setAlignment(welcomeStyle, StyleConstants.ALIGN_CENTER);
-            
-            // Add the welcome message
-            doc.insertString(doc.getLength(), "New conversation started\n", welcomeStyle);
-            doc.insertString(doc.getLength(), "Type your message below and press Enter to send\n", welcomeStyle);
-            doc.insertString(doc.getLength(), "AI can make mistakes, please verify the response\n", welcomeStyle);
-            
-            // Apply paragraph alignment
+            // Apply left alignment
             doc.setParagraphAttributes(0, doc.getLength(), welcomeStyle, false);
-            
         } catch (BadLocationException e) {
             log.error("Error displaying welcome message", e);
         }
     }
 
+    /**
+     * Sends the message from the input field to the chat
+     */
     private void sendMessage() {
-        String message = inputField.getText().trim();
-        if (!message.isEmpty()) {
-            // Disable input field and send button while waiting for response
-            inputField.setEnabled(false);
-            sendButton.setEnabled(false);
-
-            appendToChat("You: " + message, Color.BLUE, false);
-            inputField.setText("");
-
-            conversationHistory.add(message);
-
-            // Get the currently selected model from the dropdown
-            ModelInfo selectedModel = (ModelInfo) modelSelector.getSelectedItem();
-            if (selectedModel != null) {
-                // Set the current model ID before generating the response
-                log.info("Using model from dropdown for message: {}", selectedModel.id());
-                claudeService.setModel(selectedModel.id());
-            } else {
-                log.warn("No model selected in dropdown, using default model: {}", claudeService.getCurrentModel());
-            }
-
-            // Call Claude API with full conversation history
-            new SwingWorker<String, Void>() {
-                @Override
-                protected String doInBackground() {
-                    return claudeService.generateResponse(new ArrayList<>(conversationHistory));
-                }
-
-                @Override
-                protected void done() {
-                    try {
-                        String response = get();
-                        appendToChat("Claude: " + response, Color.BLACK, true);
-                        conversationHistory.add(response);
-                    } catch (Exception e) {
-                        log.error("Error getting response", e);
-                        appendToChat("Error: " + e.getMessage(), Color.RED, false);
-                    } finally {
-                        // Re-enable input field and send button after response is received
-                        inputField.setEnabled(true);
-                        sendButton.setEnabled(true);
-                        inputField.requestFocus();
-                    }
-                }
-            }.execute();
+        String message = messageField.getText().trim();
+        if (message.isEmpty()) {
+            return;
         }
+        
+        // Clear the input field
+        messageField.setText("");
+        
+        // Add the user message to the chat
+        appendToChat("You: " + message, Color.BLACK, false);
+        
+        // Add the message to the conversation history
+        conversationHistory.add(message);
+        
+        // Process the message
+        sendUserMessage(message);
     }
 
     private void appendToChat(String message, Color color, boolean parseMarkdown) {
-        StyledDocument doc = chatArea.getStyledDocument();
-
+        if (message == null || message.isEmpty()) {
+            return;
+        }
+        
         try {
-            // Reset any previous paragraph attributes to default alignment
-            SimpleAttributeSet defaultParagraphStyle = new SimpleAttributeSet();
-            StyleConstants.setAlignment(defaultParagraphStyle, StyleConstants.ALIGN_LEFT);
-            doc.setParagraphAttributes(doc.getLength(), 0, defaultParagraphStyle, true);
+            StyledDocument doc = chatArea.getStyledDocument();
             
-            // Get the system default font
-            Font defaultFont = UIManager.getFont("TextField.font");
+            // Create a style with the specified color
+            SimpleAttributeSet style = new SimpleAttributeSet();
+            StyleConstants.setForeground(style, color);
             
-            // Add the sender part with the specified color
-            SimpleAttributeSet senderStyle = new SimpleAttributeSet();
-            StyleConstants.setForeground(senderStyle, color);
-            StyleConstants.setBold(senderStyle, true);
-            StyleConstants.setFontFamily(senderStyle, defaultFont.getFamily());
-            StyleConstants.setFontSize(senderStyle, defaultFont.getSize());
-
-            // For Claude messages, only style the "Claude: " part
-            if (message.startsWith("Claude: ") && parseMarkdown) {
-                doc.insertString(doc.getLength(), "Claude: ", senderStyle);
-
-                // Process the rest of the message for markdown
-                String claudeMessage = message.substring("Claude: ".length());
-                processMarkdownMessage(doc, claudeMessage);
-                
-                // Parse the Claude message for element suggestions and create buttons
-                createElementButtons(claudeMessage);
-            } else {
-                // For user messages or non-markdown messages
-                doc.insertString(doc.getLength(), message + "\n", senderStyle);
+            // For user messages, make them bold and ensure they're black
+            if (message.startsWith("You:")) {
+                StyleConstants.setBold(style, true);
+                StyleConstants.setForeground(style, Color.BLACK);
             }
-
-            // Scroll to the end
+            
+            // Get the current position
+            int length = doc.getLength();
+            
+            if (parseMarkdown) {
+                // Process markdown in the message
+                processMarkdownMessage(doc, message);
+            } else {
+                // Add the message with the specified style
+                doc.insertString(length, message + "\n", style);
+            }
+            
+            // Ensure left alignment for all text
+            SimpleAttributeSet leftAlign = new SimpleAttributeSet();
+            StyleConstants.setAlignment(leftAlign, StyleConstants.ALIGN_LEFT);
+            doc.setParagraphAttributes(0, doc.getLength(), leftAlign, false);
+            
+            // Scroll to the bottom
             chatArea.setCaretPosition(doc.getLength());
         } catch (BadLocationException e) {
             log.error("Error appending to chat", e);
@@ -340,326 +339,304 @@ public class AiChatPanel extends JPanel {
     }
 
     private void processMarkdownMessage(StyledDocument doc, String message) throws BadLocationException {
-        // Find all code blocks in the message
+        // Extract code blocks
         Matcher matcher = CODE_BLOCK_PATTERN.matcher(message);
-
-        int lastEnd = 0;
-        int blockCount = 0;
+        StringBuffer sb = new StringBuffer();
         
-        // Create a default style for regular text
-        SimpleAttributeSet defaultStyle = new SimpleAttributeSet();
-        // Use the system default font for regular text
-        Font defaultFont = UIManager.getFont("TextField.font");
-        StyleConstants.setFontFamily(defaultStyle, defaultFont.getFamily());
-        StyleConstants.setFontSize(defaultStyle, defaultFont.getSize());
+        // Map to store code blocks
+        Map<String, String> codeBlocks = new HashMap<>();
+        int codeBlockCounter = 0;
         
-        // Process each code block
+        // Replace code blocks with placeholders
         while (matcher.find()) {
-            blockCount++;
-
-            // Add the text before the code block
-            String textBefore = message.substring(lastEnd, matcher.start());
-            if (!textBefore.isEmpty()) {
-                // Process basic markdown in the text before the code block
-                processBasicMarkdown(doc, textBefore);
-            }
-
-            // Get the code block content
             String language = matcher.group(1).trim();
-            String codeContent = matcher.group(2).trim();
-            String codeId = "code_" + System.currentTimeMillis() + "_" + blockCount;
-
-            // Store the code for copying
-            codeSnippets.put(codeId, codeContent);
-
-            // Add code block header with language and copy button
-            SimpleAttributeSet codeHeaderStyle = new SimpleAttributeSet();
-            StyleConstants.setBackground(codeHeaderStyle, new Color(240, 240, 240));
-            StyleConstants.setForeground(codeHeaderStyle, Color.GRAY);
-            StyleConstants.setFontFamily(codeHeaderStyle, "Monospaced");
-
-            // Insert a newline before the code block
-            doc.insertString(doc.getLength(), "\n", defaultStyle);
-
-            // Create a panel for the code block header
-            JPanel headerPanel = new JPanel(new BorderLayout());
-            headerPanel.setBackground(new Color(240, 240, 240));
-            headerPanel.setBorder(BorderFactory.createEmptyBorder(2, 5, 2, 5));
-
-            JLabel languageLabel = new JLabel(language.isEmpty() ? "code" : language);
-            languageLabel.setForeground(Color.GRAY);
-
-            JButton copyButton = new JButton("Copy");
-            copyButton.setFocusPainted(false);
-            copyButton.setBackground(new Color(76, 175, 80));
-            copyButton.setForeground(Color.BLACK);
-            copyButton.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 8));
-
-            final String snippetId = codeId;
-            copyButton.addActionListener(e -> {
-                String codeToCopy = codeSnippets.get(snippetId);
-                if (codeToCopy != null) {
-                    StringSelection selection = new StringSelection(codeToCopy);
-                    Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
-                    clipboard.setContents(selection, selection);
-
-                    // Change button text temporarily
-                    copyButton.setText("Copied!");
-                    copyButton.setBackground(new Color(33, 150, 243));
-                    copyButton.setForeground(Color.BLACK);
-
-                    // Reset button text after delay
-                    Timer timer = new Timer(2000, evt -> {
-                        copyButton.setText("Copy");
-                        copyButton.setBackground(new Color(76, 175, 80));
-                        copyButton.setForeground(Color.BLACK);
-                    });
-                    timer.setRepeats(false);
-                    timer.start();
-                }
-            });
-
-            headerPanel.add(languageLabel, BorderLayout.WEST);
-            headerPanel.add(copyButton, BorderLayout.EAST);
-
-            // Insert the header panel as a component
-            int headerPos = doc.getLength();
-            doc.insertString(headerPos, " ", defaultStyle); // Placeholder for component
-
-            // Add the component to the document
-            StyleConstants.setComponent(codeHeaderStyle, headerPanel);
-            doc.setCharacterAttributes(headerPos, 1, codeHeaderStyle, false);
-
-            // Insert the code content with code styling
-            SimpleAttributeSet codeStyle = new SimpleAttributeSet();
-            StyleConstants.setBackground(codeStyle, new Color(245, 245, 245));
-            StyleConstants.setFontFamily(codeStyle, "Monospaced");
-            StyleConstants.setFontSize(codeStyle, defaultFont.getSize());
-
-            // Add the code content in a bordered area
-            doc.insertString(doc.getLength(), "\n" + codeContent + "\n", codeStyle);
-
-            // Insert a newline after the code block
-            // doc.insertString(doc.getLength(), "\n", defaultStyle);
-
-            // Update lastEnd for the next iteration
-            lastEnd = matcher.end();
+            String code = matcher.group(2);
+            
+            // Generate a placeholder
+            String placeholder = "CODE_BLOCK_" + codeBlockCounter++;
+            
+            // Store the code block
+            codeBlocks.put(placeholder, code);
+            
+            // Replace the code block with the placeholder
+            matcher.appendReplacement(sb, placeholder);
         }
-
-        // Add any remaining text after the last code block
-        if (lastEnd < message.length()) {
-            String textAfter = message.substring(lastEnd);
-            if (!textAfter.isEmpty()) {
-                processBasicMarkdown(doc, textAfter);
+        matcher.appendTail(sb);
+        
+        // Process the text without code blocks
+        String textWithoutCode = sb.toString();
+        
+        // First, process basic markdown for the text without code blocks
+        processBasicMarkdown(doc, textWithoutCode);
+        
+        // Now add the code blocks
+        for (int i = 0; i < codeBlockCounter; i++) {
+            String placeholder = "CODE_BLOCK_" + i;
+            String code = codeBlocks.get(placeholder);
+            
+            if (code != null) {
+                // Find the placeholder in the document
+                String docText = doc.getText(0, doc.getLength());
+                int placeholderPos = docText.indexOf(placeholder);
+                
+                if (placeholderPos >= 0) {
+                    // Remove the placeholder
+                    doc.remove(placeholderPos, placeholder.length());
+                    
+                    // Create a panel for the code block
+                    JPanel codePanel = new JPanel(new BorderLayout());
+                    codePanel.setBorder(BorderFactory.createCompoundBorder(
+                            BorderFactory.createLineBorder(new Color(220, 220, 220), 1, true),
+                            BorderFactory.createEmptyBorder(5, 5, 5, 5)
+                    ));
+                    codePanel.setBackground(new Color(245, 245, 245));
+                    
+                    // Create a header panel for the copy button
+                    JPanel headerPanel = new JPanel(new BorderLayout());
+                    headerPanel.setBackground(new Color(245, 245, 245));
+                    
+                    // Create a copy button
+                    JButton copyButton = new JButton("Copy");
+                    copyButton.setFocusPainted(false);
+                    copyButton.setMargin(new Insets(2, 8, 2, 8));
+                    copyButton.addActionListener(e -> {
+                        StringSelection selection = new StringSelection(code);
+                        Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+                        clipboard.setContents(selection, null);
+                        copyButton.setText("Copied!");
+                        
+                        // Reset the button text after a delay
+                        Timer timer = new Timer(1500, event -> copyButton.setText("Copy"));
+                        timer.setRepeats(false);
+                        timer.start();
+                    });
+                    
+                    // Add the copy button to the header panel
+                    JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+                    buttonPanel.setBackground(new Color(245, 245, 245));
+                    buttonPanel.add(copyButton);
+                    headerPanel.add(buttonPanel, BorderLayout.EAST);
+                    
+                    // Add the header panel to the code panel
+                    codePanel.add(headerPanel, BorderLayout.NORTH);
+                    
+                    // Create a text area for the code
+                    JTextArea codeArea = new JTextArea(code.trim()); // Trim to remove extra lines
+                    codeArea.setFont(UIManager.getFont("TextField.font")); // Use default font
+                    codeArea.setEditable(false);
+                    codeArea.setBackground(new Color(245, 245, 245));
+                    codeArea.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+                    
+                    // Add the code area to the panel
+                    codePanel.add(codeArea, BorderLayout.CENTER);
+                    
+                    // Insert a placeholder for the component
+                    SimpleAttributeSet componentStyle = new SimpleAttributeSet();
+                    StyleConstants.setComponent(componentStyle, codePanel);
+                    
+                    // Apply the style to the placeholder
+                    doc.insertString(placeholderPos, " ", componentStyle);
+                }
             }
         }
-
-        // Add a single newline at the end instead of two
-        doc.insertString(doc.getLength(), "\n", defaultStyle);
     }
 
     private void processBasicMarkdown(StyledDocument doc, String text) throws BadLocationException {
-        // This is a simple implementation of basic markdown
-        // For a more complete solution, you might want to use a proper markdown parser
-
-        // Create a default style for regular text
-        SimpleAttributeSet defaultStyle = new SimpleAttributeSet();
-        // Use the system default font for regular text
-        Font defaultFont = UIManager.getFont("TextField.font");
-        StyleConstants.setFontFamily(defaultStyle, defaultFont.getFamily());
-        StyleConstants.setFontSize(defaultStyle, defaultFont.getSize());
-        // No italic or other special formatting for regular text
-
-        // Process the text line by line
+        // Define the AI response color (dark blue)
+        Color aiResponseColor = new Color(0, 51, 102);
+        
+        // Create a style for regular text
+        SimpleAttributeSet regularStyle = new SimpleAttributeSet();
+        StyleConstants.setForeground(regularStyle, aiResponseColor);
+        
+        // Create a style for bold text
+        SimpleAttributeSet boldStyle = new SimpleAttributeSet();
+        StyleConstants.setForeground(boldStyle, aiResponseColor);
+        StyleConstants.setBold(boldStyle, true);
+        
+        // Create a style for italic text
+        SimpleAttributeSet italicStyle = new SimpleAttributeSet();
+        StyleConstants.setForeground(italicStyle, aiResponseColor);
+        StyleConstants.setItalic(italicStyle, true);
+        
+        // Create a style for code text
+        SimpleAttributeSet codeStyle = new SimpleAttributeSet();
+        StyleConstants.setForeground(codeStyle, new Color(0, 0, 0)); // Black for code
+        StyleConstants.setBackground(codeStyle, new Color(245, 245, 245)); // Light gray background
+        StyleConstants.setFontFamily(codeStyle, UIManager.getFont("TextField.font").getFamily()); // Use default font
+        
+        // Split the text into lines
         String[] lines = text.split("\n");
+        
+        // Process each line
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
-
-            // Check for bold text (**text**)
-            Matcher boldMatcher = Pattern.compile("\\*\\*(.*?)\\*\\*").matcher(line);
-            StringBuffer sb = new StringBuffer();
-
-            while (boldMatcher.find()) {
-                String boldText = boldMatcher.group(1);
-                boldMatcher.appendReplacement(sb, "");
-
-                // Add the text before the bold part
-                doc.insertString(doc.getLength(), sb.toString(), defaultStyle);
-                sb.setLength(0);
-
-                // Add the bold text
-                SimpleAttributeSet boldStyle = new SimpleAttributeSet();
-                StyleConstants.setBold(boldStyle, true);
-                // Use the same font family and size as the default font
-                StyleConstants.setFontFamily(boldStyle, defaultFont.getFamily());
-                StyleConstants.setFontSize(boldStyle, defaultFont.getSize());
-                doc.insertString(doc.getLength(), boldText, boldStyle);
+            
+            // Process the line
+            int pos = 0;
+            while (pos < line.length()) {
+                // Check for bold text
+                if (pos + 1 < line.length() && line.substring(pos, pos + 2).equals("**")) {
+                    int endPos = line.indexOf("**", pos + 2);
+                    if (endPos != -1) {
+                        // Add the bold text
+                        String boldText = line.substring(pos + 2, endPos);
+                        doc.insertString(doc.getLength(), boldText, boldStyle);
+                        pos = endPos + 2;
+                    } else {
+                        // No end marker, add as regular text
+                        doc.insertString(doc.getLength(), line.substring(pos, pos + 2), regularStyle);
+                        pos += 2;
+                    }
+                }
+                // Check for italic text
+                else if (pos < line.length() && line.charAt(pos) == '*') {
+                    int endPos = line.indexOf("*", pos + 1);
+                    if (endPos != -1) {
+                        // Add the italic text
+                        String italicText = line.substring(pos + 1, endPos);
+                        doc.insertString(doc.getLength(), italicText, italicStyle);
+                        pos = endPos + 1;
+                    } else {
+                        // No end marker, add as regular text
+                        doc.insertString(doc.getLength(), "*", regularStyle);
+                        pos++;
+                    }
+                }
+                // Check for inline code
+                else if (pos < line.length() && line.charAt(pos) == '`') {
+                    int endPos = line.indexOf("`", pos + 1);
+                    if (endPos != -1) {
+                        // Add the code text
+                        String codeText = line.substring(pos + 1, endPos);
+                        doc.insertString(doc.getLength(), codeText, codeStyle);
+                        pos = endPos + 1;
+                    } else {
+                        // No end marker, add as regular text
+                        doc.insertString(doc.getLength(), "`", regularStyle);
+                        pos++;
+                    }
+                }
+                // Regular text
+                else {
+                    // Find the next special character
+                    int nextPos = line.length();
+                    int boldPos = line.indexOf("**", pos);
+                    int italicPos = line.indexOf("*", pos);
+                    int codePos = line.indexOf("`", pos);
+                    
+                    if (boldPos != -1 && boldPos < nextPos) nextPos = boldPos;
+                    if (italicPos != -1 && italicPos < nextPos) nextPos = italicPos;
+                    if (codePos != -1 && codePos < nextPos) nextPos = codePos;
+                    
+                    // Add the regular text
+                    doc.insertString(doc.getLength(), line.substring(pos, nextPos), regularStyle);
+                    pos = nextPos;
+                }
             }
-
-            boldMatcher.appendTail(sb);
-
-            // Add any remaining text
-            if (sb.length() > 0) {
-                doc.insertString(doc.getLength(), sb.toString(), defaultStyle);
-            }
-
-            // Add a newline unless it's the last line
+            
+            // Add a newline after each line except the last one
             if (i < lines.length - 1) {
-                doc.insertString(doc.getLength(), "\n", defaultStyle);
+                doc.insertString(doc.getLength(), "\n", regularStyle);
             }
         }
     }
 
     private void createElementButtons(String message) {
-        log.info("Parsing AI response for element suggestions: {}", message);
+        // Get context-aware element suggestions
+        String[][] suggestions = getContextAwareElementSuggestions();
         
-        // Create a panel to hold the buttons
-        JPanel buttonPanel = new JPanel();
-        buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.Y_AXIS));
-        buttonPanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(1, 0, 1, 0, new Color(200, 200, 200)),
-            BorderFactory.createEmptyBorder(10, 5, 10, 5)
-        ));
-        buttonPanel.setBackground(new Color(245, 245, 245));
-        
-        // Add a label to the panel
-        JLabel titleLabel = new JLabel("Available Elements to Add:");
-        titleLabel.setFont(new Font(titleLabel.getFont().getName(), Font.BOLD, 12));
-        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        buttonPanel.add(titleLabel);
-        buttonPanel.add(Box.createVerticalStrut(5));
-        
-        // Create a panel for the buttons with a GridLayout (2 columns)
-        JPanel gridPanel = new JPanel(new GridLayout(0, 2, 5, 5));
-        gridPanel.setBackground(new Color(245, 245, 245));
-        gridPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        
-        // Find all element suggestions in the message
-        Matcher matcher = ELEMENT_SUGGESTION_PATTERN.matcher(message);
-        boolean foundSuggestions = false;
-        Set<String> addedElements = new HashSet<>(); // To avoid duplicate buttons
-        int buttonCount = 0; // Counter for the number of buttons added
-        final int MAX_BUTTONS = 4; // Maximum number of buttons to display
-        
-        log.info("Looking for element suggestions in message...");
-        while (matcher.find() && buttonCount < MAX_BUTTONS) {
-            String elementType = matcher.group(1).trim().toLowerCase();
-            String elementName = matcher.group(2);
-            
-            log.info("Found element suggestion: type={}, name={}", elementType, elementName);
-            
-            // Skip if we've already added a button for this element type
-            if (addedElements.contains(elementType)) {
-                log.info("Skipping duplicate element: {}", elementType);
-                continue;
-            }
-            
-            // Map the element type to a normalized type
-            String normalizedType = mapToNormalizedElementType(elementType);
-            if (normalizedType == null) {
-                // Skip if we couldn't map the element type
-                log.info("Could not map element type to normalized type: {}", elementType);
-                continue;
-            }
-            
-            log.info("Mapped element type {} to normalized type {}", elementType, normalizedType);
-            
-            foundSuggestions = true;
-            addedElements.add(elementType);
-            
-            // Create a button for the element
-            JButton addButton = createElementButton(formatElementType(elementType), normalizedType, elementName);
-            
-            // Add the button to the panel
-            gridPanel.add(addButton);
-            buttonCount++;
-            log.info("Added button for element: {}", elementType);
+        if (suggestions.length == 0) {
+            log.info("No context-aware element suggestions available");
+            return;
         }
         
-        // If no suggestions were found in the message, create some example buttons for common elements
-        if (!foundSuggestions && (message.toLowerCase().contains("test plan") || message.toLowerCase().contains("jmeter"))) {
-            log.info("No element suggestions found, creating example buttons");
+        try {
+            StyledDocument doc = chatArea.getStyledDocument();
             
-            // Create example buttons for common elements
-            createExampleButtons(gridPanel);
-            foundSuggestions = true;
-        }
-        
-        // Add the grid panel to the main panel
-        buttonPanel.add(gridPanel);
-        
-        // If we found suggestions, add the button panel to the chat area
-        if (foundSuggestions) {
-            log.info("Found element suggestions, adding button panel to chat area");
-            try {
-                StyledDocument doc = chatArea.getStyledDocument();
+            // Create a panel for the suggestions
+            JPanel suggestionPanel = new JPanel(new BorderLayout());
+            suggestionPanel.setBorder(BorderFactory.createEmptyBorder(5, 0, 5, 0));
+            
+            // Add a label for the suggestions
+            JLabel suggestionLabel = new JLabel("Suggested elements you can add:");
+            suggestionLabel.setFont(new Font(suggestionLabel.getFont().getName(), Font.BOLD, 12));
+            suggestionLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 5, 0));
+            suggestionPanel.add(suggestionLabel, BorderLayout.NORTH);
+            
+            // Create a grid panel for the buttons (2x2 grid)
+            JPanel gridPanel = new JPanel(new GridLayout(0, 2, 5, 5));
+            
+            // Add buttons for each suggested element (up to 4)
+            int count = 0;
+            for (String[] element : suggestions) {
+                if (count >= 4) break; // Limit to 4 buttons
                 
-                // Insert a placeholder for the component
-                int pos = doc.getLength();
-                doc.insertString(pos, " ", new SimpleAttributeSet());
+                String displayName = element[0];
+                String normalizedType = element[1];
                 
-                // Create a style for the component
-                SimpleAttributeSet componentStyle = new SimpleAttributeSet();
-                StyleConstants.setComponent(componentStyle, buttonPanel);
+                // Create a button for the element
+                JButton addButton = createElementButton(displayName, normalizedType, null);
                 
-                // Apply the style to the placeholder
-                doc.setCharacterAttributes(pos, 1, componentStyle, false);
-                
-                // Add a newline after the buttons
-                doc.insertString(doc.getLength(), "\n", new SimpleAttributeSet());
-                
-                log.info("Successfully added element buttons to the chat area");
-            } catch (BadLocationException e) {
-                log.error("Error adding element buttons to chat", e);
+                // Add the button to the panel
+                gridPanel.add(addButton);
+                count++;
             }
-        } else {
-            log.info("No element suggestions found in message");
+            
+            // Add the grid panel to the main panel
+            suggestionPanel.add(gridPanel, BorderLayout.CENTER);
+            
+            // Insert a placeholder for the component at the end of the document
+            int pos = doc.getLength();
+            doc.insertString(pos, "\n", new SimpleAttributeSet());
+            pos = doc.getLength();
+            doc.insertString(pos, " ", new SimpleAttributeSet());
+            
+            // Create a style for the component
+            SimpleAttributeSet componentStyle = new SimpleAttributeSet();
+            StyleConstants.setComponent(componentStyle, suggestionPanel);
+            
+            // Apply the style to the placeholder
+            doc.setCharacterAttributes(pos, 1, componentStyle, false);
+            
+            // Add a newline after the buttons
+            doc.insertString(doc.getLength(), "\n", new SimpleAttributeSet());
+            
+            log.info("Added element suggestion buttons: {}", count);
+        } catch (BadLocationException e) {
+            log.error("Error adding element buttons", e);
         }
     }
-    
-    /**
-     * Creates a styled button for a JMeter element
-     * 
-     * @param displayName The display name for the button
-     * @param normalizedType The normalized element type
-     * @param elementName The element name (can be null)
-     * @return The styled button
-     */
-    private JButton createElementButton(String displayName, String normalizedType, String elementName) {
+
+    private JButton createElementButton(String displayName, String normalizedType, String additionalInfo) {
+        // Create a button for the element
         JButton addButton = new JButton("Add " + displayName);
+        
+        // Set button appearance
+        addButton.setBackground(new Color(135, 206, 250)); // Light blue background
+        addButton.setForeground(Color.BLACK); // Black text
         addButton.setFocusPainted(false);
-        addButton.setBackground(new Color(33, 150, 243)); // Blue background
-        addButton.setForeground(Color.BLACK); // Black text for better contrast
-        addButton.setFont(new Font(addButton.getFont().getName(), Font.BOLD, 12));
         addButton.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(25, 118, 210), 1),
-            BorderFactory.createEmptyBorder(8, 10, 8, 10)
+                BorderFactory.createLineBorder(new Color(34, 139, 34), 1, true), // Forest green border
+                BorderFactory.createEmptyBorder(5, 10, 5, 10)
         ));
         
-        // Add action listener to add the element when clicked
-        final String finalNormalizedType = normalizedType;
-        final String finalElementName = elementName;
+        // Add tooltip if additional info is provided
+        if (additionalInfo != null && !additionalInfo.isEmpty()) {
+            addButton.setToolTipText(additionalInfo);
+        }
+        
+        // Add action listener
+        String finalNormalizedType = normalizedType;
         addButton.addActionListener(e -> {
-            // Construct the request based on whether an element name was provided
-            String request;
-            if (finalElementName != null && !finalElementName.isEmpty()) {
-                request = "add " + finalNormalizedType + " called " + finalElementName;
-            } else {
-                request = "add " + finalNormalizedType;
-            }
+            // Create a request to add the element
+            String request = "add " + finalNormalizedType;
             
-            // Use the JMeterElementRequestHandler to add the element
-            String result = org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler.processElementRequest(request);
+            // Process the request
+            String response = JMeterElementRequestHandler.processElementRequest(request);
             
-            if (result != null) {
-                // Display the result in the chat area
-                appendToChat("System: " + result, new Color(0, 100, 0), false);
-                
-                // If the element was added successfully, suggest related elements
-                if (result.contains("added successfully")) {
-                    suggestRelatedElements(finalNormalizedType);
-                }
-            }
+            // Process the response
+            processAiResponse(response);
         });
         
         return addButton;
@@ -667,41 +644,53 @@ public class AiChatPanel extends JPanel {
     
     /**
      * Suggests related elements after adding an element
-     * 
-     * @param addedElementType The type of element that was added
      */
-    private void suggestRelatedElements(String addedElementType) {
-        if (addedElementType == null || addedElementType.isEmpty()) {
-            log.error("Cannot suggest related elements for null or empty element type");
+    private void suggestRelatedElements() {
+        // Get the currently selected node in the test plan
+        GuiPackage guiPackage = GuiPackage.getInstance();
+        if (guiPackage == null) {
+            log.warn("GuiPackage is null, cannot suggest related elements");
             return;
         }
         
-        log.info("Suggesting related elements for: {}", addedElementType);
+        JMeterTreeNode selectedNode = guiPackage.getTreeListener().getCurrentNode();
+        if (selectedNode == null) {
+            log.warn("No node selected in test plan, cannot suggest related elements");
+            return;
+        }
         
-        // Get related elements based on the added element type
-        String[][] relatedElements = getRelatedElements(addedElementType);
+        // Get the type of the selected node
+        TestElement testElement = selectedNode.getTestElement();
+        String nodeType = testElement.getClass().getSimpleName();
         
+        log.info("Suggesting related elements for node type: {}", nodeType);
+        
+        // Get related elements based on the node type
+        String[][] relatedElements = getRelatedElements(nodeType);
+        
+        // If no related elements were found, return
         if (relatedElements.length == 0) {
-            log.info("No related elements found for: {}", addedElementType);
+            log.info("No related elements found for node type: {}", nodeType);
             return;
         }
         
-        // Create a panel for the suggestions
+        // Create a panel for the suggestion message and buttons
         JPanel suggestionPanel = new JPanel(new BorderLayout());
         suggestionPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
         
-        // Add a label for the suggestions
-        JLabel suggestionLabel = new JLabel("You might also want to add:");
-        suggestionLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 5, 0));
+        // Add a message about the suggestions
+        JLabel suggestionLabel = new JLabel("Here are some elements you might want to add next:");
+        suggestionLabel.setFont(new Font(suggestionLabel.getFont().getName(), Font.BOLD, suggestionLabel.getFont().getSize()));
         suggestionPanel.add(suggestionLabel, BorderLayout.NORTH);
         
         // Create a grid panel for the buttons (2x2 grid)
         JPanel gridPanel = new JPanel(new GridLayout(0, 2, 5, 5));
+        gridPanel.setBorder(BorderFactory.createEmptyBorder(5, 0, 0, 0));
         
         // Add buttons for each related element (up to 4)
-        int count = 0;
+        int buttonCount = 0;
         for (String[] element : relatedElements) {
-            if (count >= 4) break; // Limit to 4 buttons
+            if (buttonCount >= 4) break; // Limit to 4 buttons
             
             String displayName = element[0];
             String normalizedType = element[1];
@@ -711,11 +700,11 @@ public class AiChatPanel extends JPanel {
             
             // Add the button to the panel
             gridPanel.add(addButton);
-            count++;
+            buttonCount++;
         }
         
         // Add the grid panel to the main panel
-        suggestionPanel.add(gridPanel);
+        suggestionPanel.add(gridPanel, BorderLayout.CENTER);
         
         try {
             StyledDocument doc = chatArea.getStyledDocument();
@@ -731,12 +720,12 @@ public class AiChatPanel extends JPanel {
             // Apply the style to the placeholder
             doc.setCharacterAttributes(pos, 1, componentStyle, false);
             
-            // Add a newline after the buttons
-            doc.insertString(doc.getLength(), "\n", new SimpleAttributeSet());
+            // Scroll to the bottom
+            chatArea.setCaretPosition(doc.getLength());
             
-            log.info("Added suggested elements after adding {}", addedElementType);
+            log.info("Added related element suggestions");
         } catch (BadLocationException e) {
-            log.error("Error adding suggested elements to chat", e);
+            log.error("Error adding suggestion buttons", e);
         }
     }
     
@@ -802,7 +791,7 @@ public class AiChatPanel extends JPanel {
             case "aggregatereport":
                 return new String[][] {
                     {"Response Assertion", "responseassert"},
-                    {"Duration Assertion", "durationassertion"}
+                    {"Duration Assertion", "durationassert"}
                 };
             default:
                 return new String[0][0];
@@ -839,185 +828,150 @@ public class AiChatPanel extends JPanel {
      * @return Array of suggested elements [display name, normalized type]
      */
     private String[][] getContextAwareElementSuggestions() {
-        GuiPackage guiPackage = GuiPackage.getInstance();
-        if (guiPackage == null) {
-            log.error("GuiPackage is null, cannot get context-aware suggestions");
-            return getDefaultElementSuggestions();
-        }
-
-        // Get the currently selected node
-        JMeterTreeNode currentNode = guiPackage.getTreeListener().getCurrentNode();
-        if (currentNode == null) {
-            log.info("No node is currently selected in the test plan, using default suggestions");
-            return getDefaultElementSuggestions();
-        }
-
-        log.info("Getting context-aware suggestions for node: {}", currentNode.getName());
+        log.info("Getting context-aware element suggestions");
         
-        // Get the type of the current node
-        String nodeType = getNodeType(currentNode);
-        log.info("Current node type: {}", nodeType);
+        // Get the current selected node from JMeter
+        JMeterTreeNode selectedNode = GuiPackage.getInstance().getTreeListener().getCurrentNode();
         
-        // Get suggestions based on the node type and test plan structure
-        return getSuggestionsForNodeType(nodeType, currentNode);
+        if (selectedNode == null) {
+            log.warn("No node selected, suggesting test plan elements");
+            // If no node is selected, suggest creating a test plan
+            return new String[][] {
+                {"Test Plan", "testplan"},
+                {"Thread Group", "threadgroup"},
+                {"HTTP Request", "httprequest"},
+                {"View Results Tree", "viewresultstree"}
+            };
+        }
+        
+        // Get the type of the selected node
+        String selectedNodeType = selectedNode.getStaticLabel().toLowerCase();
+        log.info("Selected node type: {}", selectedNodeType);
+        
+        // Return suggestions based on the selected node type
+        return getSuggestionsForNodeType(selectedNodeType);
     }
     
     /**
-     * Gets the type of a JMeter tree node
+     * Gets element suggestions based on the type of the selected node
      * 
-     * @param node The JMeter tree node
-     * @return The type of the node
-     */
-    private String getNodeType(JMeterTreeNode node) {
-        if (node == null) {
-            return "unknown";
-        }
-        
-        TestElement element = node.getTestElement();
-        if (element == null) {
-            return "unknown";
-        }
-        
-        String className = element.getClass().getSimpleName();
-        log.info("Node class name: {}", className);
-        
-        // Map the class name to a more user-friendly type
-        if (className.contains("TestPlan")) {
-            return "testplan";
-        } else if (className.contains("ThreadGroup")) {
-            return "threadgroup";
-        } else if (className.contains("HTTPSampler")) {
-            return "httpsampler";
-        } else if (className.contains("LoopController")) {
-            return "loopcontroller";
-        } else if (className.contains("IfController")) {
-            return "ifcontroller";
-        } else if (className.contains("WhileController")) {
-            return "whilecontroller";
-        } else if (className.contains("TransactionController")) {
-            return "transactioncontroller";
-        } else if (className.contains("CSVDataSet")) {
-            return "csvdataset";
-        } else if (className.contains("HeaderManager")) {
-            return "headermanager";
-        } else if (className.contains("Assertion")) {
-            return "assertion";
-        } else if (className.contains("Timer")) {
-            return "timer";
-        } else if (className.contains("Extractor")) {
-            return "extractor";
-        } else if (className.contains("Listener")) {
-            return "listener";
-        } else if (className.contains("Controller")) {
-            return "controller";
-        }
-        
-        return "unknown";
-    }
-    
-    /**
-     * Gets suggestions based on the node type and test plan structure
-     * 
-     * @param nodeType The type of the node
-     * @param currentNode The current node
+     * @param nodeType The type of the selected node
      * @return Array of suggested elements [display name, normalized type]
      */
-    private String[][] getSuggestionsForNodeType(String nodeType, JMeterTreeNode currentNode) {
-        switch (nodeType.toLowerCase()) {
-            case "testplan":
-                // For test plan, suggest thread groups
+    private String[][] getSuggestionsForNodeType(String nodeType) {
+        // Convert node type to lowercase for case-insensitive comparison
+        nodeType = nodeType.toLowerCase();
+        
+        // Check for specific node types and return appropriate suggestions
+        switch (nodeType) {
+            case "test plan":
                 return new String[][] {
                     {"Thread Group", "threadgroup"},
-                    {"View Results Tree", "viewresultstree"},
-                    {"Aggregate Report", "aggregatereport"},
-                    {"CSV Data Set", "csvdataset"}
-                };
-                
-            case "threadgroup":
-                // For thread groups, suggest samplers, controllers, and config elements
-                return new String[][] {
-                    {"HTTP Sampler", "httpsampler"},
-                    {"Loop Controller", "loopcontroller"},
-                    {"CSV Data Set", "csvdataset"},
-                    {"Constant Timer", "constanttimer"}
-                };
-                
-            case "httpsampler":
-                // For HTTP samplers, suggest assertions, extractors, and timers
-                return new String[][] {
-                    {"Response Assertion", "responseassert"},
-                    {"JSON Path Extractor", "jsonpathextractor"},
-                    {"Constant Timer", "constanttimer"},
+                    {"HTTP Header Manager", "headerManager"},
+                    {"CSV Data Set Config", "csvdataset"},
                     {"View Results Tree", "viewresultstree"}
                 };
                 
-            case "controller":
-            case "loopcontroller":
-            case "ifcontroller":
-            case "whilecontroller":
-            case "transactioncontroller":
-                // For controllers, suggest samplers and other controllers
+            case "thread group":
+            case "setUp thread group":
+            case "tearDown thread group":
                 return new String[][] {
-                    {"HTTP Sampler", "httpsampler"},
+                    {"HTTP Request", "httprequest"},
                     {"Loop Controller", "loopcontroller"},
                     {"If Controller", "ifcontroller"},
-                    {"Response Assertion", "responseassert"}
+                    {"While Controller", "whilecontroller"}
                 };
                 
-            case "assertion":
-                // For assertions, suggest other assertions or listeners
+            case "http request":
+            case "http sampler":
                 return new String[][] {
-                    {"JSON Path Assertion", "jsonassertion"},
-                    {"Duration Assertion", "durationassertion"},
-                    {"Size Assertion", "sizeassertion"},
-                    {"View Results Tree", "viewresultstree"}
+                    {"Response Assertion", "responseassert"},
+                    {"JSON Path Assertion", "jsonpathassert"},
+                    {"Duration Assertion", "durationassert"},
+                    {"Size Assertion", "sizeassert"}
                 };
                 
-            case "timer":
-                // For timers, suggest other timers
+            case "loop controller":
+            case "if controller":
+            case "while controller":
+            case "transaction controller":
+            case "runtime controller":
                 return new String[][] {
+                    {"HTTP Request", "httprequest"},
+                    {"Loop Controller", "loopcontroller"},
+                    {"If Controller", "ifcontroller"},
+                    {"While Controller", "whilecontroller"}
+                };
+                
+            case "view results tree":
+            case "aggregate report":
+                return new String[][] {
+                    {"Thread Group", "threadgroup"},
+                    {"HTTP Request", "httprequest"},
+                    {"View Results Tree", "viewresultstree"},
+                    {"Aggregate Report", "aggregatereport"}
+                };
+                
+            case "response assertion":
+            case "json path assertion":
+            case "duration assertion":
+            case "size assertion":
+            case "xpath assertion":
+                return new String[][] {
+                    {"HTTP Request", "httprequest"},
+                    {"Response Assertion", "responseassert"},
+                    {"JSON Path Assertion", "jsonpathassert"},
+                    {"XPath Assertion", "xpathassert"}
+                };
+                
+            case "constant timer":
+            case "uniform random timer":
+            case "gaussian random timer":
+            case "poisson random timer":
+                return new String[][] {
+                    {"HTTP Request", "httprequest"},
+                    {"Constant Timer", "constanttimer"},
                     {"Uniform Random Timer", "uniformrandomtimer"},
-                    {"Gaussian Random Timer", "gaussianrandomtimer"},
-                    {"Poisson Random Timer", "poissonrandomtimer"},
-                    {"HTTP Sampler", "httpsampler"}
+                    {"Gaussian Random Timer", "gaussianrandomtimer"}
                 };
                 
-            case "extractor":
-                // For extractors, suggest other extractors or assertions
+            case "regex extractor":
+            case "xpath extractor":
+            case "json path extractor":
+            case "boundary extractor":
                 return new String[][] {
                     {"Regex Extractor", "regexextractor"},
                     {"XPath Extractor", "xpathextractor"},
-                    {"Boundary Extractor", "boundaryextractor"},
-                    {"Response Assertion", "responseassert"}
+                    {"JSON Path Extractor", "jsonpathextractor"},
+                    {"Boundary Extractor", "boundaryextractor"}
                 };
                 
             case "listener":
-                // For listeners, suggest other listeners
                 return new String[][] {
                     {"View Results Tree", "viewresultstree"},
                     {"Aggregate Report", "aggregatereport"},
-                    {"Response Assertion", "responseassert"},
-                    {"Thread Group", "threadgroup"}
+                    {"Thread Group", "threadgroup"},
+                    {"HTTP Request", "httprequest"}
+                };
+                
+            case "csv data set config":
+            case "http header manager":
+                return new String[][] {
+                    {"Thread Group", "threadgroup"},
+                    {"HTTP Request", "httprequest"},
+                    {"CSV Data Set Config", "csvdataset"},
+                    {"HTTP Header Manager", "headerManager"}
                 };
                 
             default:
-                // Default suggestions
-                return getDefaultElementSuggestions();
+                // Default suggestions for unknown node types
+                return new String[][] {
+                    {"Thread Group", "threadgroup"},
+                    {"HTTP Request", "httprequest"},
+                    {"View Results Tree", "viewresultstree"},
+                    {"Loop Controller", "loopcontroller"}
+                };
         }
-    }
-    
-    /**
-     * Gets default element suggestions when no context is available
-     * 
-     * @return Array of default element suggestions
-     */
-    private String[][] getDefaultElementSuggestions() {
-        return new String[][] {
-            {"Thread Group", "threadgroup"},
-            {"HTTP Sampler", "httpsampler"},
-            {"Loop Controller", "loopcontroller"},
-            {"CSV Data Set", "csvdataset"}
-        };
     }
 
     /**
@@ -1179,5 +1133,121 @@ public class AiChatPanel extends JPanel {
         }
         
         return result.toString().trim();
+    }
+
+    /**
+     * Sends a user message to the AI and handles the response
+     * 
+     * @param message The user message
+     */
+    private void sendUserMessage(String message) {
+        // Disable the input field and send button while waiting for a response
+        messageField.setEnabled(false);
+        sendButton.setEnabled(false);
+        
+        // Add a loading indicator
+        appendToChat("AI is thinking...", new Color(150, 150, 150), false);
+        
+        // Process the message in the background
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                // First check if this is a request to add a JMeter element
+                String elementResponse = JMeterElementRequestHandler.processElementRequest(message);
+                if (elementResponse != null) {
+                    return elementResponse;
+                }
+                
+                // If not an element request, get a response from the AI
+                return getAiResponse(message);
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    // Remove the loading indicator
+                    removeLoadingIndicator();
+                    
+                    // Get the AI response
+                    String response = get();
+                    
+                    // Process the AI response
+                    processAiResponse(response);
+                } catch (Exception e) {
+                    log.error("Error getting AI response", e);
+                    appendToChat("Error: " + e.getMessage(), Color.RED, false);
+                } finally {
+                    // Re-enable the input field and send button
+                    messageField.setEnabled(true);
+                    sendButton.setEnabled(true);
+                    messageField.requestFocusInWindow();
+                }
+            }
+        }.execute();
+    }
+    
+    /**
+     * Removes the loading indicator from the chat
+     */
+    private void removeLoadingIndicator() {
+        try {
+            StyledDocument doc = chatArea.getStyledDocument();
+            
+            // Find the loading indicator text
+            String text = doc.getText(0, doc.getLength());
+            int index = text.lastIndexOf("AI is thinking...");
+            
+            if (index != -1) {
+                // Remove the loading indicator
+                doc.remove(index, "AI is thinking...".length());
+            }
+        } catch (BadLocationException e) {
+            log.error("Error removing loading indicator", e);
+        }
+    }
+
+    /**
+     * Processes the AI response and handles any element addition requests
+     * 
+     * @param response The AI response
+     */
+    private void processAiResponse(String response) {
+        if (response == null || response.isEmpty()) {
+            log.warn("Empty AI response");
+            return;
+        }
+        
+        log.info("Processing AI response: {}", response.substring(0, Math.min(100, response.length())));
+        
+        // Add the AI response to the chat
+        appendToChat(response, new Color(0, 51, 102), true);
+        
+        // Create element buttons for context-aware suggestions after the AI response
+        SwingUtilities.invokeLater(() -> {
+            createElementButtons(response);
+        });
+    }
+    
+    /**
+     * Gets a response from the AI based on the conversation history
+     * 
+     * @param message The user message
+     * @return The AI response
+     */
+    private String getAiResponse(String message) {
+        log.info("Getting AI response for message: {}", message);
+        
+        // Get the currently selected model from the dropdown
+        ModelInfo selectedModel = (ModelInfo) modelSelector.getSelectedItem();
+        if (selectedModel != null) {
+            // Set the current model ID before generating the response
+            log.info("Using model from dropdown for message: {}", selectedModel.id());
+            claudeService.setModel(selectedModel.id());
+        } else {
+            log.warn("No model selected in dropdown, using default model: {}", claudeService.getCurrentModel());
+        }
+        
+        // Call Claude API with full conversation history
+        return claudeService.generateResponse(new ArrayList<>(conversationHistory));
     }
 }
