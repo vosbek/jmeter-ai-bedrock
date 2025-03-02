@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.text.*;
+import javax.swing.border.*;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
@@ -38,9 +39,9 @@ public class AiChatPanel extends JPanel {
         claudeService = new ClaudeService();
         setLayout(new BorderLayout());
         setPreferredSize(new Dimension(400, 600));
-
-        // Create the top panel for model selection
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        
+        // Add a margin around the entire panel
+        setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 10));
 
         // Initialize model selector with loading state
         modelSelector = new JComboBox<>();
@@ -57,7 +58,7 @@ public class AiChatPanel extends JPanel {
                 return super.getListCellRendererComponent(list, model.id(), index, isSelected, cellHasFocus);
             }
         });
-
+        
         // Load models in background
         new SwingWorker<List<ModelInfo>, Void>() {
             @Override
@@ -70,18 +71,30 @@ public class AiChatPanel extends JPanel {
                 try {
                     List<ModelInfo> models = get();
                     modelSelector.removeAllItems();
+                    
+                    // Get the default model ID
+                    String defaultModelId = claudeService.getCurrentModel();
+                    log.info("Default model ID: {}", defaultModelId);
+                    
+                    ModelInfo defaultModelInfo = null;
+                    
                     for (ModelInfo model : models) {
                         modelSelector.addItem(model);
-                    }
-                    // Select the default model
-                    String defaultModelId = claudeService.getCurrentModel();
-                    log.info("Setting initial model selection to: {}", defaultModelId);
-                    for (int i = 0; i < modelSelector.getItemCount(); i++) {
-                        ModelInfo model = modelSelector.getItemAt(i);
-                        if (model != null && model.id().equals(defaultModelId)) {
-                            modelSelector.setSelectedIndex(i);
-                            break;
+                        if (model.id().equals(defaultModelId)) {
+                            defaultModelInfo = model;
                         }
+                    }
+                    
+                    // Select the default model if found
+                    if (defaultModelInfo != null) {
+                        modelSelector.setSelectedItem(defaultModelInfo);
+                        log.info("Selected default model: {}", defaultModelInfo.id());
+                    } else if (modelSelector.getItemCount() > 0) {
+                        // If default model not found, select the first one
+                        modelSelector.setSelectedIndex(0);
+                        ModelInfo selectedModel = (ModelInfo) modelSelector.getSelectedItem();
+                        claudeService.setModel(selectedModel.id());
+                        log.info("Default model not found, selected first available: {}", selectedModel.id());
                     }
                 } catch (Exception e) {
                     log.error("Failed to load models", e);
@@ -94,33 +107,133 @@ public class AiChatPanel extends JPanel {
             ModelInfo selectedModel = (ModelInfo) modelSelector.getSelectedItem();
             if (selectedModel != null) {
                 log.info("Model selected from dropdown: {}", selectedModel.id());
+                // Immediately set the model in the service
+                claudeService.setModel(selectedModel.id());
             }
         });
 
-        JLabel modelLabel = new JLabel("Model: ");
-        topPanel.add(modelLabel);
-        topPanel.add(modelSelector);
-        add(topPanel, BorderLayout.NORTH);
+        // Create a panel for the chat area with header
+        JPanel chatPanel = new JPanel(new BorderLayout());
+        chatPanel.setBorder(BorderFactory.createMatteBorder(0, 1, 1, 1, Color.LIGHT_GRAY));
+        
+        // Create a header panel for the title and new chat button
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 1, 0, Color.LIGHT_GRAY),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)
+        ));
+        headerPanel.setBackground(new Color(240, 240, 240));
+        
+        // Add a title to the left side of the header panel
+        JLabel titleLabel = new JLabel("JMeter Agent");
+        titleLabel.setFont(new Font(titleLabel.getFont().getName(), Font.BOLD, 14));
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        
+        // Create the "New Chat" button with a plus icon
+        JButton newChatButton = new JButton("+");
+        newChatButton.setToolTipText("Start a new conversation");
+        newChatButton.setFont(new Font(newChatButton.getFont().getName(), Font.BOLD, 16));
+        newChatButton.setFocusPainted(false);
+        newChatButton.setMargin(new Insets(0, 8, 0, 8));
+        newChatButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(200, 200, 200), 1, true),
+                BorderFactory.createEmptyBorder(2, 8, 2, 8)
+        ));
+        
+        // Add action listener to reset the conversation
+        newChatButton.addActionListener(e -> startNewConversation());
+        
+        // Add the button to the right side of the header panel
+        headerPanel.add(newChatButton, BorderLayout.EAST);
+        
+        // Add the header panel to the top of the chat panel
+        chatPanel.add(headerPanel, BorderLayout.NORTH);
 
         // Initialize chat area
         chatArea = new JTextPane();
         chatArea.setEditable(false);
+        // Use the system default font
+        chatArea.setFont(UIManager.getFont("TextField.font"));
         JScrollPane scrollPane = new JScrollPane(chatArea);
-        add(scrollPane, BorderLayout.CENTER);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        chatPanel.add(scrollPane, BorderLayout.CENTER);
+        
+        // Add the chat panel to the center of the main panel
+        add(chatPanel, BorderLayout.CENTER);
 
-        JPanel inputPanel = new JPanel(new BorderLayout());
+        // Create the bottom panel with model selector and input controls
+        JPanel bottomPanel = new JPanel(new BorderLayout(5, 5));
+        bottomPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
+        
+        // Add model selector to the bottom panel
+        JPanel modelPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JLabel modelLabel = new JLabel("Model: ");
+        modelPanel.add(modelLabel);
+        modelPanel.add(modelSelector);
+        bottomPanel.add(modelPanel, BorderLayout.NORTH);
+        
+        // Create input panel with text field and send button
+        JPanel inputPanel = new JPanel(new BorderLayout(5, 0));
         inputField = new JTextField();
         sendButton = new JButton("Send");
-
         inputPanel.add(inputField, BorderLayout.CENTER);
         inputPanel.add(sendButton, BorderLayout.EAST);
-
-        add(inputPanel, BorderLayout.SOUTH);
+        bottomPanel.add(inputPanel, BorderLayout.CENTER);
+        
+        add(bottomPanel, BorderLayout.SOUTH);
 
         sendButton.addActionListener(e -> sendMessage());
         inputField.addActionListener(e -> sendMessage());
 
         conversationHistory = new ArrayList<>();
+        
+        // Display welcome message
+        displayWelcomeMessage();
+    }
+    
+    /**
+     * Starts a new conversation by clearing the chat area and conversation history
+     */
+    private void startNewConversation() {
+        // Clear the chat area
+        chatArea.setText("");
+        
+        // Clear the conversation history
+        conversationHistory.clear();
+        
+        // Reset the input field
+        inputField.setText("");
+        
+        // Display welcome message
+        displayWelcomeMessage();
+        
+        // Log the action
+        log.info("Started new conversation");
+    }
+    
+    /**
+     * Displays a welcome message in the chat area
+     */
+    private void displayWelcomeMessage() {
+        try {
+            StyledDocument doc = chatArea.getStyledDocument();
+            
+            // Create a style for the welcome message
+            SimpleAttributeSet welcomeStyle = new SimpleAttributeSet();
+            StyleConstants.setForeground(welcomeStyle, new Color(100, 100, 100));
+            StyleConstants.setItalic(welcomeStyle, true);
+            StyleConstants.setAlignment(welcomeStyle, StyleConstants.ALIGN_CENTER);
+            
+            // Add the welcome message
+            doc.insertString(doc.getLength(), "New conversation started\n", welcomeStyle);
+            doc.insertString(doc.getLength(), "Type your message below and press Enter to send\n\n", welcomeStyle);
+            
+            // Apply paragraph alignment
+            doc.setParagraphAttributes(0, doc.getLength(), welcomeStyle, false);
+            
+        } catch (BadLocationException e) {
+            log.error("Error displaying welcome message", e);
+        }
     }
 
     private void sendMessage() {
@@ -176,10 +289,20 @@ public class AiChatPanel extends JPanel {
         StyledDocument doc = chatArea.getStyledDocument();
 
         try {
+            // Reset any previous paragraph attributes to default alignment
+            SimpleAttributeSet defaultParagraphStyle = new SimpleAttributeSet();
+            StyleConstants.setAlignment(defaultParagraphStyle, StyleConstants.ALIGN_LEFT);
+            doc.setParagraphAttributes(doc.getLength(), 0, defaultParagraphStyle, true);
+            
+            // Get the system default font
+            Font defaultFont = UIManager.getFont("TextField.font");
+            
             // Add the sender part with the specified color
             SimpleAttributeSet senderStyle = new SimpleAttributeSet();
             StyleConstants.setForeground(senderStyle, color);
             StyleConstants.setBold(senderStyle, true);
+            StyleConstants.setFontFamily(senderStyle, defaultFont.getFamily());
+            StyleConstants.setFontSize(senderStyle, defaultFont.getSize());
 
             // For Claude messages, only style the "Claude: " part
             if (message.startsWith("Claude: ") && parseMarkdown) {
@@ -190,7 +313,7 @@ public class AiChatPanel extends JPanel {
                 processMarkdownMessage(doc, claudeMessage);
             } else {
                 // For user messages or non-markdown messages
-                doc.insertString(doc.getLength(), message + "\n\n", senderStyle);
+                doc.insertString(doc.getLength(), message + "\n", senderStyle);
             }
 
             // Scroll to the end
@@ -206,7 +329,14 @@ public class AiChatPanel extends JPanel {
 
         int lastEnd = 0;
         int blockCount = 0;
-
+        
+        // Create a default style for regular text
+        SimpleAttributeSet defaultStyle = new SimpleAttributeSet();
+        // Use the system default font for regular text
+        Font defaultFont = UIManager.getFont("TextField.font");
+        StyleConstants.setFontFamily(defaultStyle, defaultFont.getFamily());
+        StyleConstants.setFontSize(defaultStyle, defaultFont.getSize());
+        
         // Process each code block
         while (matcher.find()) {
             blockCount++;
@@ -233,7 +363,7 @@ public class AiChatPanel extends JPanel {
             StyleConstants.setFontFamily(codeHeaderStyle, "Monospaced");
 
             // Insert a newline before the code block
-            doc.insertString(doc.getLength(), "\n", null);
+            doc.insertString(doc.getLength(), "\n", defaultStyle);
 
             // Create a panel for the code block header
             JPanel headerPanel = new JPanel(new BorderLayout());
@@ -278,7 +408,7 @@ public class AiChatPanel extends JPanel {
 
             // Insert the header panel as a component
             int headerPos = doc.getLength();
-            doc.insertString(headerPos, " ", null); // Placeholder for component
+            doc.insertString(headerPos, " ", defaultStyle); // Placeholder for component
 
             // Add the component to the document
             StyleConstants.setComponent(codeHeaderStyle, headerPanel);
@@ -288,13 +418,13 @@ public class AiChatPanel extends JPanel {
             SimpleAttributeSet codeStyle = new SimpleAttributeSet();
             StyleConstants.setBackground(codeStyle, new Color(245, 245, 245));
             StyleConstants.setFontFamily(codeStyle, "Monospaced");
-            StyleConstants.setFontSize(codeStyle, 12);
+            StyleConstants.setFontSize(codeStyle, defaultFont.getSize());
 
             // Add the code content in a bordered area
             doc.insertString(doc.getLength(), "\n" + codeContent + "\n", codeStyle);
 
             // Insert a newline after the code block
-            // doc.insertString(doc.getLength(), "\n", null);
+            // doc.insertString(doc.getLength(), "\n", defaultStyle);
 
             // Update lastEnd for the next iteration
             lastEnd = matcher.end();
@@ -308,13 +438,21 @@ public class AiChatPanel extends JPanel {
             }
         }
 
-        // Add extra newline at the end
-        doc.insertString(doc.getLength(), "\n", null);
+        // Add a single newline at the end instead of two
+        doc.insertString(doc.getLength(), "\n", defaultStyle);
     }
 
     private void processBasicMarkdown(StyledDocument doc, String text) throws BadLocationException {
         // This is a simple implementation of basic markdown
         // For a more complete solution, you might want to use a proper markdown parser
+
+        // Create a default style for regular text
+        SimpleAttributeSet defaultStyle = new SimpleAttributeSet();
+        // Use the system default font for regular text
+        Font defaultFont = UIManager.getFont("TextField.font");
+        StyleConstants.setFontFamily(defaultStyle, defaultFont.getFamily());
+        StyleConstants.setFontSize(defaultStyle, defaultFont.getSize());
+        // No italic or other special formatting for regular text
 
         // Process the text line by line
         String[] lines = text.split("\n");
@@ -330,12 +468,15 @@ public class AiChatPanel extends JPanel {
                 boldMatcher.appendReplacement(sb, "");
 
                 // Add the text before the bold part
-                doc.insertString(doc.getLength(), sb.toString(), null);
+                doc.insertString(doc.getLength(), sb.toString(), defaultStyle);
                 sb.setLength(0);
 
                 // Add the bold text
                 SimpleAttributeSet boldStyle = new SimpleAttributeSet();
                 StyleConstants.setBold(boldStyle, true);
+                // Use the same font family and size as the default font
+                StyleConstants.setFontFamily(boldStyle, defaultFont.getFamily());
+                StyleConstants.setFontSize(boldStyle, defaultFont.getSize());
                 doc.insertString(doc.getLength(), boldText, boldStyle);
             }
 
@@ -343,12 +484,12 @@ public class AiChatPanel extends JPanel {
 
             // Add any remaining text
             if (sb.length() > 0) {
-                doc.insertString(doc.getLength(), sb.toString(), null);
+                doc.insertString(doc.getLength(), sb.toString(), defaultStyle);
             }
 
             // Add a newline unless it's the last line
             if (i < lines.length - 1) {
-                doc.insertString(doc.getLength(), "\n", null);
+                doc.insertString(doc.getLength(), "\n", defaultStyle);
             }
         }
     }

@@ -11,6 +11,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.Objects;
+
 public class AiMenuItem extends JMenuItem implements ActionListener{
     private static final Logger log = LoggerFactory.getLogger(AiMenuItem.class);
     private static final Action vtg = new AI();
@@ -40,7 +41,7 @@ public class AiMenuItem extends JMenuItem implements ActionListener{
                         try {
                             Thread.sleep(1000);
                         } catch (InterruptedException e) {
-                            log.debug("Couldn't add Validate Thread Group button to menubar", e);
+                            log.debug("Couldn't add button to menubar", e);
                         }
                         log.debug("Searching for toolbar ... ");
                         toolbar = finder.findComponentIn(mf);
@@ -54,11 +55,12 @@ public class AiMenuItem extends JMenuItem implements ActionListener{
             });
         }
     }
+
     private JButton getToolbarButton() {
         JButton button = new JButton(getButtonIcon(22));
-        button.setToolTipText("Validate Thread Group(s)");
+        button.setToolTipText("Toggle AI Chat Panel");
         button.addActionListener(this);
-        button.setActionCommand("validate_tg");
+        button.setActionCommand("toggle_ai_panel");
         return button;
     }
 
@@ -96,13 +98,15 @@ public class AiMenuItem extends JMenuItem implements ActionListener{
         if (guiPackage != null) {
             MainFrame mainFrame = guiPackage.getMainFrame();
             
-            if (currentChatPanel != null) {
+            if (currentChatPanel != null && currentChatPanel.isShowing()) {
                 // Panel is currently shown, remove it
                 mainFrame.getContentPane().remove(currentChatPanel);
-                currentChatPanel = null;
             } else {
                 // Panel is not shown, add it
-                currentChatPanel = new AiChatPanel();
+                if (currentChatPanel == null) {
+                    // Only create a new panel if one doesn't exist
+                    currentChatPanel = new AiChatPanel();
+                }
                 mainFrame.getContentPane().add(currentChatPanel, BorderLayout.EAST);
             }
             
