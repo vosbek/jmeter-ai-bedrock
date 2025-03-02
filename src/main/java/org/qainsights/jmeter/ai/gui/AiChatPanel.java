@@ -21,6 +21,11 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.jmeter.gui.GuiPackage;
+import org.apache.jmeter.gui.tree.JMeterTreeNode;
+import org.apache.jmeter.testelement.TestElement;
+import javax.swing.tree.TreeNode;
+import java.util.Enumeration;
 
 public class AiChatPanel extends JPanel {
     private JTextPane chatArea;
@@ -623,23 +628,37 @@ public class AiChatPanel extends JPanel {
     private JButton createElementButton(String displayName, String normalizedType, String elementName) {
         JButton addButton = new JButton("Add " + displayName);
         addButton.setFocusPainted(false);
-        addButton.setBackground(new Color(46, 125, 50)); // Darker green for better contrast
-        addButton.setForeground(Color.BLACK);
+        addButton.setBackground(new Color(33, 150, 243)); // Blue background
+        addButton.setForeground(Color.BLACK); // Black text for better contrast
         addButton.setFont(new Font(addButton.getFont().getName(), Font.BOLD, 12));
         addButton.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(27, 94, 32), 1),
+            BorderFactory.createLineBorder(new Color(25, 118, 210), 1),
             BorderFactory.createEmptyBorder(8, 10, 8, 10)
         ));
         
         // Add action listener to add the element when clicked
+        final String finalNormalizedType = normalizedType;
+        final String finalElementName = elementName;
         addButton.addActionListener(e -> {
+            // Construct the request based on whether an element name was provided
+            String request;
+            if (finalElementName != null && !finalElementName.isEmpty()) {
+                request = "add " + finalNormalizedType + " called " + finalElementName;
+            } else {
+                request = "add " + finalNormalizedType;
+            }
+            
             // Use the JMeterElementRequestHandler to add the element
-            String result = org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler.processElementRequest(
-                    "add " + normalizedType + (elementName != null ? " called " + elementName : ""));
+            String result = org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler.processElementRequest(request);
             
             if (result != null) {
                 // Display the result in the chat area
                 appendToChat("System: " + result, new Color(0, 100, 0), false);
+                
+                // If the element was added successfully, suggest related elements
+                if (result.contains("added successfully")) {
+                    suggestRelatedElements(finalNormalizedType);
+                }
             }
         });
         
@@ -652,87 +671,72 @@ public class AiChatPanel extends JPanel {
      * @param addedElementType The type of element that was added
      */
     private void suggestRelatedElements(String addedElementType) {
-        // Create a panel to hold the buttons
-        JPanel suggestionPanel = new JPanel();
-        suggestionPanel.setLayout(new BoxLayout(suggestionPanel, BoxLayout.Y_AXIS));
-        suggestionPanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createMatteBorder(1, 0, 1, 0, new Color(200, 200, 200)),
-            BorderFactory.createEmptyBorder(10, 5, 10, 5)
-        ));
-        suggestionPanel.setBackground(new Color(240, 248, 255)); // Light blue background
+        if (addedElementType == null || addedElementType.isEmpty()) {
+            log.error("Cannot suggest related elements for null or empty element type");
+            return;
+        }
         
-        // Add a label to the panel
-        JLabel titleLabel = new JLabel("Suggested Elements to Add Next:");
-        titleLabel.setFont(new Font(titleLabel.getFont().getName(), Font.BOLD, 12));
-        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        suggestionPanel.add(titleLabel);
-        suggestionPanel.add(Box.createVerticalStrut(5));
-        
-        // Create a panel for the buttons with a GridLayout (2 columns)
-        JPanel gridPanel = new JPanel(new GridLayout(0, 2, 5, 5));
-        gridPanel.setBackground(new Color(240, 248, 255));
-        gridPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        log.info("Suggesting related elements for: {}", addedElementType);
         
         // Get related elements based on the added element type
         String[][] relatedElements = getRelatedElements(addedElementType);
         
-        if (relatedElements.length > 0) {
-            for (String[] element : relatedElements) {
-                String displayName = element[0];
-                String normalizedType = element[1];
-                
-                // Create a button for the element (with a different style)
-                JButton addButton = new JButton("Add " + displayName);
-                addButton.setFocusPainted(false);
-                addButton.setBackground(new Color(33, 150, 243)); // Blue for suggested elements
-                addButton.setForeground(Color.WHITE);
-                addButton.setFont(new Font(addButton.getFont().getName(), Font.BOLD, 12));
-                addButton.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(25, 118, 210), 1),
-                    BorderFactory.createEmptyBorder(8, 10, 8, 10)
-                ));
-                
-                // Add action listener to add the element when clicked
-                final String finalNormalizedType = normalizedType;
-                addButton.addActionListener(e -> {
-                    // Use the JMeterElementRequestHandler to add the element
-                    String result = org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler.processElementRequest(
-                            "add " + finalNormalizedType);
-                    
-                    if (result != null) {
-                        // Display the result in the chat area
-                        appendToChat("System: " + result, new Color(0, 100, 0), false);
-                    }
-                });
-                
-                // Add the button to the panel
-                gridPanel.add(addButton);
-            }
+        if (relatedElements.length == 0) {
+            log.info("No related elements found for: {}", addedElementType);
+            return;
+        }
+        
+        // Create a panel for the suggestions
+        JPanel suggestionPanel = new JPanel(new BorderLayout());
+        suggestionPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+        
+        // Add a label for the suggestions
+        JLabel suggestionLabel = new JLabel("You might also want to add:");
+        suggestionLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 5, 0));
+        suggestionPanel.add(suggestionLabel, BorderLayout.NORTH);
+        
+        // Create a grid panel for the buttons (2x2 grid)
+        JPanel gridPanel = new JPanel(new GridLayout(0, 2, 5, 5));
+        
+        // Add buttons for each related element (up to 4)
+        int count = 0;
+        for (String[] element : relatedElements) {
+            if (count >= 4) break; // Limit to 4 buttons
             
-            // Add the grid panel to the main panel
-            suggestionPanel.add(gridPanel);
+            String displayName = element[0];
+            String normalizedType = element[1];
             
-            try {
-                StyledDocument doc = chatArea.getStyledDocument();
-                
-                // Insert a placeholder for the component
-                int pos = doc.getLength();
-                doc.insertString(pos, " ", new SimpleAttributeSet());
-                
-                // Create a style for the component
-                SimpleAttributeSet componentStyle = new SimpleAttributeSet();
-                StyleConstants.setComponent(componentStyle, suggestionPanel);
-                
-                // Apply the style to the placeholder
-                doc.setCharacterAttributes(pos, 1, componentStyle, false);
-                
-                // Add a newline after the buttons
-                doc.insertString(doc.getLength(), "\n", new SimpleAttributeSet());
-                
-                log.info("Added suggested elements after adding {}", addedElementType);
-            } catch (BadLocationException e) {
-                log.error("Error adding suggested elements to chat", e);
-            }
+            // Create a button for the element
+            JButton addButton = createElementButton(displayName, normalizedType, null);
+            
+            // Add the button to the panel
+            gridPanel.add(addButton);
+            count++;
+        }
+        
+        // Add the grid panel to the main panel
+        suggestionPanel.add(gridPanel);
+        
+        try {
+            StyledDocument doc = chatArea.getStyledDocument();
+            
+            // Insert a placeholder for the component
+            int pos = doc.getLength();
+            doc.insertString(pos, " ", new SimpleAttributeSet());
+            
+            // Create a style for the component
+            SimpleAttributeSet componentStyle = new SimpleAttributeSet();
+            StyleConstants.setComponent(componentStyle, suggestionPanel);
+            
+            // Apply the style to the placeholder
+            doc.setCharacterAttributes(pos, 1, componentStyle, false);
+            
+            // Add a newline after the buttons
+            doc.insertString(doc.getLength(), "\n", new SimpleAttributeSet());
+            
+            log.info("Added suggested elements after adding {}", addedElementType);
+        } catch (BadLocationException e) {
+            log.error("Error adding suggested elements to chat", e);
         }
     }
     
@@ -811,13 +815,10 @@ public class AiChatPanel extends JPanel {
      * @param panel The panel to add the buttons to
      */
     private void createExampleButtons(JPanel panel) {
-        // Common JMeter elements - limit to 4 buttons (2 rows of 2 buttons)
-        String[][] elements = {
-            {"Thread Group", "threadgroup"},
-            {"HTTP Sampler", "httpsampler"},
-            {"CSV Data Set", "csvdataset"},
-            {"Loop Controller", "loopcontroller"}
-        };
+        // Get context-aware element suggestions based on the current test plan structure
+        String[][] elements = getContextAwareElementSuggestions();
+        
+        log.info("Creating {} context-aware element suggestion buttons", elements.length);
         
         for (String[] element : elements) {
             String displayName = element[0];
@@ -828,10 +829,197 @@ public class AiChatPanel extends JPanel {
             
             // Add the button to the panel
             panel.add(addButton);
-            log.info("Added example button for element: {}", displayName);
+            log.info("Added context-aware button for element: {}", displayName);
         }
     }
     
+    /**
+     * Gets context-aware element suggestions based on the current test plan structure
+     * 
+     * @return Array of suggested elements [display name, normalized type]
+     */
+    private String[][] getContextAwareElementSuggestions() {
+        GuiPackage guiPackage = GuiPackage.getInstance();
+        if (guiPackage == null) {
+            log.error("GuiPackage is null, cannot get context-aware suggestions");
+            return getDefaultElementSuggestions();
+        }
+
+        // Get the currently selected node
+        JMeterTreeNode currentNode = guiPackage.getTreeListener().getCurrentNode();
+        if (currentNode == null) {
+            log.info("No node is currently selected in the test plan, using default suggestions");
+            return getDefaultElementSuggestions();
+        }
+
+        log.info("Getting context-aware suggestions for node: {}", currentNode.getName());
+        
+        // Get the type of the current node
+        String nodeType = getNodeType(currentNode);
+        log.info("Current node type: {}", nodeType);
+        
+        // Get suggestions based on the node type and test plan structure
+        return getSuggestionsForNodeType(nodeType, currentNode);
+    }
+    
+    /**
+     * Gets the type of a JMeter tree node
+     * 
+     * @param node The JMeter tree node
+     * @return The type of the node
+     */
+    private String getNodeType(JMeterTreeNode node) {
+        if (node == null) {
+            return "unknown";
+        }
+        
+        TestElement element = node.getTestElement();
+        if (element == null) {
+            return "unknown";
+        }
+        
+        String className = element.getClass().getSimpleName();
+        log.info("Node class name: {}", className);
+        
+        // Map the class name to a more user-friendly type
+        if (className.contains("TestPlan")) {
+            return "testplan";
+        } else if (className.contains("ThreadGroup")) {
+            return "threadgroup";
+        } else if (className.contains("HTTPSampler")) {
+            return "httpsampler";
+        } else if (className.contains("LoopController")) {
+            return "loopcontroller";
+        } else if (className.contains("IfController")) {
+            return "ifcontroller";
+        } else if (className.contains("WhileController")) {
+            return "whilecontroller";
+        } else if (className.contains("TransactionController")) {
+            return "transactioncontroller";
+        } else if (className.contains("CSVDataSet")) {
+            return "csvdataset";
+        } else if (className.contains("HeaderManager")) {
+            return "headermanager";
+        } else if (className.contains("Assertion")) {
+            return "assertion";
+        } else if (className.contains("Timer")) {
+            return "timer";
+        } else if (className.contains("Extractor")) {
+            return "extractor";
+        } else if (className.contains("Listener")) {
+            return "listener";
+        } else if (className.contains("Controller")) {
+            return "controller";
+        }
+        
+        return "unknown";
+    }
+    
+    /**
+     * Gets suggestions based on the node type and test plan structure
+     * 
+     * @param nodeType The type of the node
+     * @param currentNode The current node
+     * @return Array of suggested elements [display name, normalized type]
+     */
+    private String[][] getSuggestionsForNodeType(String nodeType, JMeterTreeNode currentNode) {
+        switch (nodeType.toLowerCase()) {
+            case "testplan":
+                // For test plan, suggest thread groups
+                return new String[][] {
+                    {"Thread Group", "threadgroup"},
+                    {"View Results Tree", "viewresultstree"},
+                    {"Aggregate Report", "aggregatereport"},
+                    {"CSV Data Set", "csvdataset"}
+                };
+                
+            case "threadgroup":
+                // For thread groups, suggest samplers, controllers, and config elements
+                return new String[][] {
+                    {"HTTP Sampler", "httpsampler"},
+                    {"Loop Controller", "loopcontroller"},
+                    {"CSV Data Set", "csvdataset"},
+                    {"Constant Timer", "constanttimer"}
+                };
+                
+            case "httpsampler":
+                // For HTTP samplers, suggest assertions, extractors, and timers
+                return new String[][] {
+                    {"Response Assertion", "responseassert"},
+                    {"JSON Path Extractor", "jsonpathextractor"},
+                    {"Constant Timer", "constanttimer"},
+                    {"View Results Tree", "viewresultstree"}
+                };
+                
+            case "controller":
+            case "loopcontroller":
+            case "ifcontroller":
+            case "whilecontroller":
+            case "transactioncontroller":
+                // For controllers, suggest samplers and other controllers
+                return new String[][] {
+                    {"HTTP Sampler", "httpsampler"},
+                    {"Loop Controller", "loopcontroller"},
+                    {"If Controller", "ifcontroller"},
+                    {"Response Assertion", "responseassert"}
+                };
+                
+            case "assertion":
+                // For assertions, suggest other assertions or listeners
+                return new String[][] {
+                    {"JSON Path Assertion", "jsonassertion"},
+                    {"Duration Assertion", "durationassertion"},
+                    {"Size Assertion", "sizeassertion"},
+                    {"View Results Tree", "viewresultstree"}
+                };
+                
+            case "timer":
+                // For timers, suggest other timers
+                return new String[][] {
+                    {"Uniform Random Timer", "uniformrandomtimer"},
+                    {"Gaussian Random Timer", "gaussianrandomtimer"},
+                    {"Poisson Random Timer", "poissonrandomtimer"},
+                    {"HTTP Sampler", "httpsampler"}
+                };
+                
+            case "extractor":
+                // For extractors, suggest other extractors or assertions
+                return new String[][] {
+                    {"Regex Extractor", "regexextractor"},
+                    {"XPath Extractor", "xpathextractor"},
+                    {"Boundary Extractor", "boundaryextractor"},
+                    {"Response Assertion", "responseassert"}
+                };
+                
+            case "listener":
+                // For listeners, suggest other listeners
+                return new String[][] {
+                    {"View Results Tree", "viewresultstree"},
+                    {"Aggregate Report", "aggregatereport"},
+                    {"Response Assertion", "responseassert"},
+                    {"Thread Group", "threadgroup"}
+                };
+                
+            default:
+                // Default suggestions
+                return getDefaultElementSuggestions();
+        }
+    }
+    
+    /**
+     * Gets default element suggestions when no context is available
+     * 
+     * @return Array of default element suggestions
+     */
+    private String[][] getDefaultElementSuggestions() {
+        return new String[][] {
+            {"Thread Group", "threadgroup"},
+            {"HTTP Sampler", "httpsampler"},
+            {"Loop Controller", "loopcontroller"},
+            {"CSV Data Set", "csvdataset"}
+        };
+    }
+
     /**
      * Maps a user-friendly element type to a normalized type that JMeter understands
      * 
