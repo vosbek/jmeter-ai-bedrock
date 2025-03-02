@@ -28,7 +28,7 @@ public class JMeterElementManager {
 
         // Samplers (most common)
         ELEMENT_CLASS_MAP.put("httpsampler", "org.apache.jmeter.protocol.http.control.gui.HttpTestSampleGui");
-        
+
         // Controllers (most common)
         ELEMENT_CLASS_MAP.put("loopcontroller", "org.apache.jmeter.control.gui.LoopControlPanel");
         ELEMENT_CLASS_MAP.put("ifcontroller", "org.apache.jmeter.control.gui.IfControllerPanel");
@@ -59,7 +59,8 @@ public class JMeterElementManager {
         // Extractors (most common)
         ELEMENT_CLASS_MAP.put("regexextractor", "org.apache.jmeter.extractor.gui.RegexExtractorGui");
         ELEMENT_CLASS_MAP.put("xpathextractor", "org.apache.jmeter.extractor.gui.XPathExtractorGui");
-        ELEMENT_CLASS_MAP.put("jsonpathextractor", "org.apache.jmeter.extractor.json.jsonpath.gui.JSONPostProcessorGui");
+        ELEMENT_CLASS_MAP.put("jsonpathextractor",
+                "org.apache.jmeter.extractor.json.jsonpath.gui.JSONPostProcessorGui");
         ELEMENT_CLASS_MAP.put("boundaryextractor", "org.apache.jmeter.extractor.gui.BoundaryExtractorGui");
 
         // Listeners (most common)
@@ -299,229 +300,81 @@ public class JMeterElementManager {
     }
 
     /**
-     * Deletes the currently selected node in the test plan.
+     * Checks if the test plan is ready for operations.
      * 
-     * @return true if the element was deleted successfully, false otherwise
+     * @return A TestPlanStatus object indicating if the test plan is ready and any error message
      */
-    public static boolean deleteSelectedElement() {
+    public static TestPlanStatus isTestPlanReady() {
+        GuiPackage guiPackage = GuiPackage.getInstance();
+        if (guiPackage == null) {
+            return new TestPlanStatus(false, "JMeter GUI is not available");
+        }
+
+        // Check if a test plan is open
+        if (guiPackage.getTreeModel() == null || guiPackage.getTreeModel().getRoot() == null) {
+            return new TestPlanStatus(false, "No test plan is currently open");
+        }
+
+        return new TestPlanStatus(true, null);
+    }
+
+    /**
+     * Ensures that a test plan exists, creating one if necessary.
+     * 
+     * @return true if a test plan exists or was created successfully, false otherwise
+     */
+    public static boolean ensureTestPlanExists() {
+        GuiPackage guiPackage = GuiPackage.getInstance();
+        if (guiPackage == null) {
+            log.error("GuiPackage is null, cannot ensure test plan exists");
+            return false;
+        }
+
+        // Check if a test plan is already open
+        if (guiPackage.getTreeModel() != null && guiPackage.getTreeModel().getRoot() != null) {
+            log.info("Test plan already exists");
+            return true;
+        }
+
         try {
-            GuiPackage guiPackage = GuiPackage.getInstance();
-            if (guiPackage == null) {
-                log.error("GuiPackage is null, cannot delete element");
-                return false;
-            }
-
-            // Get the currently selected node
-            JMeterTreeNode currentNode = guiPackage.getTreeListener().getCurrentNode();
-            if (currentNode == null) {
-                log.error("No node is currently selected in the test plan");
-                return false;
-            }
-
-            // Cannot delete the test plan itself
-            if (currentNode.getParent() == null) {
-                log.error("Cannot delete the test plan itself");
-                return false;
-            }
-
-            // Get the parent node
-            JMeterTreeNode parentNode = (JMeterTreeNode) currentNode.getParent();
-
-            // Remove the node from the tree
-            guiPackage.getTreeModel().removeNodeFromParent(currentNode);
-
-            // Refresh the tree
-            guiPackage.getTreeModel().nodeStructureChanged(parentNode);
-
-            log.info("Successfully deleted element from the test plan");
+            // Create a new test plan
+            ActionRouter.getInstance().doActionNow(new ActionEvent(guiPackage.getMainFrame(), 0, "new"));
+            log.info("Created a new test plan");
             return true;
         } catch (Exception e) {
-            log.error("Error deleting element from the test plan", e);
+            log.error("Error creating a new test plan", e);
             return false;
         }
     }
 
     /**
-     * Deletes an element by name from the test plan.
+     * Selects the test plan node in the tree.
      * 
-     * @param elementName The name of the element to delete
-     * @return true if the element was deleted successfully, false otherwise
+     * @return true if the test plan node was selected successfully, false otherwise
      */
-    public static boolean deleteElementByName(String elementName) {
+    public static boolean selectTestPlanNode() {
+        GuiPackage guiPackage = GuiPackage.getInstance();
+        if (guiPackage == null) {
+            log.error("GuiPackage is null, cannot select test plan node");
+            return false;
+        }
+
         try {
-            if (elementName == null || elementName.trim().isEmpty()) {
-                log.error("Element name is null or empty");
-                return false;
-            }
-
-            GuiPackage guiPackage = GuiPackage.getInstance();
-            if (guiPackage == null) {
-                log.error("GuiPackage is null, cannot delete element");
-                return false;
-            }
-
-            // Get the root node
+            // Get the root node (test plan)
             JMeterTreeNode root = (JMeterTreeNode) guiPackage.getTreeModel().getRoot();
             if (root == null) {
-                log.error("Root node is null, cannot delete element");
+                log.error("Root node is null, cannot select test plan node");
                 return false;
             }
 
-            // Find the node with the given name
-            JMeterTreeNode nodeToDelete = findNodeByName(root, elementName);
-            if (nodeToDelete == null) {
-                log.error("No node found with name: {}", elementName);
-                return false;
-            }
-
-            // Cannot delete the test plan itself
-            if (nodeToDelete.getParent() == null) {
-                log.error("Cannot delete the test plan itself");
-                return false;
-            }
-
-            // Get the parent node
-            JMeterTreeNode parentNode = (JMeterTreeNode) nodeToDelete.getParent();
-
-            // Remove the node from the tree
-            guiPackage.getTreeModel().removeNodeFromParent(nodeToDelete);
-
-            // Refresh the tree
-            guiPackage.getTreeModel().nodeStructureChanged(parentNode);
-
-            log.info("Successfully deleted element '{}' from the test plan", elementName);
+            // Select the test plan node
+            guiPackage.getTreeListener().getJTree().setSelectionPath(new TreePath(root.getPath()));
+            log.info("Selected the test plan node");
             return true;
         } catch (Exception e) {
-            log.error("Error deleting element '{}' from the test plan", elementName, e);
+            log.error("Error selecting the test plan node", e);
             return false;
         }
-    }
-
-    /**
-     * Deletes an element by type and name from the test plan.
-     * 
-     * @param elementType The type of element to delete
-     * @param elementName The name of the element to delete
-     * @return true if the element was deleted successfully, false otherwise
-     */
-    public static boolean deleteElement(String elementType, String elementName) {
-        try {
-            if (elementType == null || elementName == null) {
-                log.error("Element type or name is null");
-                return false;
-            }
-
-            GuiPackage guiPackage = GuiPackage.getInstance();
-            if (guiPackage == null) {
-                log.error("GuiPackage is null, cannot delete element");
-                return false;
-            }
-
-            // Get the root node
-            JMeterTreeNode root = (JMeterTreeNode) guiPackage.getTreeModel().getRoot();
-            if (root == null) {
-                log.error("Root node is null, cannot delete element");
-                return false;
-            }
-
-            // Find the node with the given name and type
-            JMeterTreeNode nodeToDelete = findNodeByNameAndType(root, elementName, elementType);
-            if (nodeToDelete == null) {
-                log.error("No node found with name: {} and type: {}", elementName, elementType);
-                return false;
-            }
-
-            // Cannot delete the test plan itself
-            if (nodeToDelete.getParent() == null) {
-                log.error("Cannot delete the test plan itself");
-                return false;
-            }
-
-            // Get the parent node
-            JMeterTreeNode parentNode = (JMeterTreeNode) nodeToDelete.getParent();
-
-            // Remove the node from the tree
-            guiPackage.getTreeModel().removeNodeFromParent(nodeToDelete);
-
-            // Refresh the tree
-            guiPackage.getTreeModel().nodeStructureChanged(parentNode);
-
-            log.info("Successfully deleted element '{}' of type '{}' from the test plan", elementName, elementType);
-            return true;
-        } catch (Exception e) {
-            log.error("Error deleting element '{}' of type '{}' from the test plan", elementName, elementType, e);
-            return false;
-        }
-    }
-
-    /**
-     * Recursively finds a node by name in the test plan.
-     * 
-     * @param root The root node to start searching from
-     * @param name The name of the node to find
-     * @return The node with the given name, or null if not found
-     */
-    private static JMeterTreeNode findNodeByName(JMeterTreeNode root, String name) {
-        if (root == null || name == null) {
-            return null;
-        }
-
-        // Check if this node matches the name
-        if (root.getName().equalsIgnoreCase(name)) {
-            return root;
-        }
-
-        // Check all children
-        for (int i = 0; i < root.getChildCount(); i++) {
-            JMeterTreeNode child = (JMeterTreeNode) root.getChildAt(i);
-            JMeterTreeNode result = findNodeByName(child, name);
-            if (result != null) {
-                return result;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Recursively finds a node by name and type in the test plan.
-     * 
-     * @param root The root node to start searching from
-     * @param name The name of the node to find
-     * @param type The type of the node to find
-     * @return The node with the given name and type, or null if not found
-     */
-    private static JMeterTreeNode findNodeByNameAndType(JMeterTreeNode root, String name, String type) {
-        if (root == null || name == null || type == null) {
-            return null;
-        }
-
-        // Check if this node matches the name
-        if (root.getName().equalsIgnoreCase(name)) {
-            // Check if the node is of the correct type
-            TestElement testElement = root.getTestElement();
-            if (testElement != null) {
-                String guiClassName = testElement.getPropertyAsString(TestElement.GUI_CLASS);
-                String normalizedType = normalizeElementType(type);
-                String expectedGuiClassName = ELEMENT_CLASS_MAP.get(normalizedType);
-                
-                if (guiClassName != null && expectedGuiClassName != null && 
-                    guiClassName.equals(expectedGuiClassName)) {
-                    return root;
-                }
-            }
-        }
-
-        // Check all children
-        for (int i = 0; i < root.getChildCount(); i++) {
-            JMeterTreeNode child = (JMeterTreeNode) root.getChildAt(i);
-            JMeterTreeNode result = findNodeByNameAndType(child, name, type);
-            if (result != null) {
-                return result;
-            }
-        }
-
-        return null;
     }
 
     /**
@@ -547,9 +400,9 @@ public class JMeterElementManager {
         if (elementType == null) {
             return "New Element";
         }
-        
+
         String normalizedType = normalizeElementType(elementType);
-        
+
         switch (normalizedType) {
             case "httpsampler":
                 return "HTTP Request";
@@ -603,7 +456,7 @@ public class JMeterElementManager {
                 // Convert camelCase to Title Case with spaces
                 String name = normalizedType.replaceAll("([a-z])([A-Z])", "$1 $2");
                 name = name.substring(0, 1).toUpperCase() + name.substring(1);
-                
+
                 return name;
         }
     }
@@ -788,14 +641,14 @@ public class JMeterElementManager {
                     break;
                 }
             }
-            
+
             if (normalizedType != null) {
                 if (normalizedType.equals("csvdataset")) {
                     return "org.apache.jmeter.config.CSVDataSet";
                 }
                 // Add more TestBeanGUI-based components as needed
             }
-            
+
             // Default to CSV Data Set if we can't determine the specific type
             return "org.apache.jmeter.config.CSVDataSet";
         }
@@ -831,28 +684,6 @@ public class JMeterElementManager {
     }
 
     /**
-     * Checks if a test plan is open and a node is selected.
-     * 
-     * @return A status object containing whether the test plan is ready and an
-     *         error message if not
-     */
-    public static TestPlanStatus isTestPlanReady() {
-        GuiPackage guiPackage = GuiPackage.getInstance();
-        if (guiPackage == null) {
-            return new TestPlanStatus(false,
-                    "No test plan is currently open. Please create or open a test plan first.");
-        }
-
-        JMeterTreeNode currentNode = guiPackage.getTreeListener().getCurrentNode();
-        if (currentNode == null) {
-            return new TestPlanStatus(false,
-                    "No node is currently selected in the test plan. Please select a node where you want to add the element.");
-        }
-
-        return new TestPlanStatus(true, null);
-    }
-
-    /**
      * Status class for test plan readiness.
      */
     public static class TestPlanStatus {
@@ -870,64 +701,6 @@ public class JMeterElementManager {
 
         public String getErrorMessage() {
             return errorMessage;
-        }
-    }
-
-    /**
-     * Creates a new test plan if one doesn't exist.
-     * 
-     * @return true if a new test plan was created or one already exists, false if
-     *         there was an error
-     */
-    public static boolean ensureTestPlanExists() {
-        GuiPackage guiPackage = GuiPackage.getInstance();
-        if (guiPackage == null) {
-            log.error("GuiPackage is null, cannot create test plan");
-            return false;
-        }
-
-        try {
-            // Check if a test plan already exists
-            JMeterTreeNode root = (JMeterTreeNode) guiPackage.getTreeModel().getRoot();
-            if (root != null) {
-                log.info("Test plan already exists");
-                return true;
-            }
-
-            // Create a new test plan
-            log.info("Creating a new test plan");
-            ActionRouter.getInstance().doActionNow(new ActionEvent(new Object(), 0, "action_new"));
-            return true;
-        } catch (Exception e) {
-            log.error("Error creating test plan", e);
-            return false;
-        }
-    }
-
-    /**
-     * Selects the root test plan node in the tree.
-     * 
-     * @return true if the test plan node was selected, false otherwise
-     */
-    public static boolean selectTestPlanNode() {
-        try {
-            GuiPackage guiPackage = GuiPackage.getInstance();
-            if (guiPackage == null) {
-                log.error("GuiPackage is null, cannot select test plan node");
-                return false;
-            }
-
-            JMeterTreeNode root = (JMeterTreeNode) guiPackage.getTreeModel().getRoot();
-            if (root == null) {
-                log.error("No test plan root node found");
-                return false;
-            }
-
-            guiPackage.getTreeListener().getJTree().setSelectionPath(new TreePath(root.getPath()));
-            return true;
-        } catch (Exception e) {
-            log.error("Error selecting test plan node", e);
-            return false;
         }
     }
 }
