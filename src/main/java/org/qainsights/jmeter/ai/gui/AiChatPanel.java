@@ -7,6 +7,8 @@ import org.qainsights.jmeter.ai.utils.Models;
 import org.apache.jmeter.gui.GuiPackage;
 import org.apache.jmeter.gui.tree.JMeterTreeNode;
 import org.apache.jmeter.testelement.TestElement;
+import org.apache.jmeter.testelement.property.JMeterProperty;
+import org.apache.jmeter.testelement.property.PropertyIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1161,24 +1163,97 @@ public class AiChatPanel extends JPanel {
      * @param message The user message
      */
     private void sendUserMessage(String message) {
-        // Disable the input field and send button while waiting for a response
+        // Check if this is a special @this command
+        if (message.toLowerCase().contains("@this")) {
+            // Handle the @this command to get information about the current element
+            String currentElementInfo = getCurrentElementInfo();
+            if (currentElementInfo != null) {
+                // Display loading indicator
+                appendToChat("AI is thinking...", new Color(128, 128, 128), false);
+                
+                // Disable input while processing
+                messageField.setEnabled(false);
+                sendButton.setEnabled(false);
+                
+                // Process the message in a background thread
+                new SwingWorker<String, Void>() {
+                    @Override
+                    protected String doInBackground() throws Exception {
+                        // Create a context-enhanced message for Claude
+                        String enhancedMessage = "The user asked: \"" + message + "\"\n\n" +
+                                "Here is information about the currently selected element in the JMeter test plan:\n\n" +
+                                currentElementInfo + "\n\n" +
+                                "Please provide a helpful response about this element based on the user's question and the element information provided.";
+                        
+                        // Get the currently selected model from the dropdown
+                        ModelInfo selectedModel = (ModelInfo) modelSelector.getSelectedItem();
+                        if (selectedModel != null) {
+                            // Set the current model ID before generating the response
+                            claudeService.setModel(selectedModel.id());
+                        }
+                        
+                        // Send the enhanced message to Claude
+                        return claudeService.generateDirectResponse(enhancedMessage);
+                    }
+                    
+                    @Override
+                    protected void done() {
+                        try {
+                            // Remove the loading indicator
+                            removeLoadingIndicator();
+                            
+                            // Get the AI response
+                            String response = get();
+                            
+                            // Process the AI response
+                            processAiResponse(response);
+                            
+                            // Re-enable input
+                            messageField.setEnabled(true);
+                            sendButton.setEnabled(true);
+                            messageField.requestFocusInWindow();
+                        } catch (InterruptedException | ExecutionException e) {
+                            log.error("Error getting AI response for @this command", e);
+                            
+                            // Remove the loading indicator
+                            removeLoadingIndicator();
+                            
+                            // Display error message
+                            appendToChat("Sorry, I encountered an error while processing your request. Please try again.", Color.RED, false);
+                            
+                            // Re-enable input
+                            messageField.setEnabled(true);
+                            sendButton.setEnabled(true);
+                            messageField.requestFocusInWindow();
+                        }
+                    }
+                }.execute();
+                return;
+            } else {
+                processAiResponse("I couldn't find information about the currently selected element. Please make sure you have selected an element in the test plan.");
+                return;
+            }
+        }
+
+        // Check if this is an element request
+        String elementResponse = JMeterElementRequestHandler.processElementRequest(message);
+        if (elementResponse != null) {
+            log.info("Detected element request, returning structured response");
+            processAiResponse(elementResponse);
+            return;
+        }
+        
+        // Display loading indicator
+        appendToChat("AI is thinking...", new Color(128, 128, 128), false);
+        
+        // Disable input while processing
         messageField.setEnabled(false);
         sendButton.setEnabled(false);
         
-        // Add a loading indicator
-        appendToChat("AI is thinking...", new Color(150, 150, 150), false);
-        
-        // Process the message in the background
+        // Process the message in a background thread
         new SwingWorker<String, Void>() {
             @Override
             protected String doInBackground() throws Exception {
-                // First check if this is a request to add a JMeter element
-                String elementResponse = JMeterElementRequestHandler.processElementRequest(message);
-                if (elementResponse != null) {
-                    return elementResponse;
-                }
-                
-                // If not an element request, get a response from the AI
                 return getAiResponse(message);
             }
             
@@ -1193,17 +1268,190 @@ public class AiChatPanel extends JPanel {
                     
                     // Process the AI response
                     processAiResponse(response);
-                } catch (Exception e) {
+                    
+                    // Re-enable input
+                    messageField.setEnabled(true);
+                    sendButton.setEnabled(true);
+                    messageField.requestFocusInWindow();
+                } catch (InterruptedException | ExecutionException e) {
                     log.error("Error getting AI response", e);
-                    appendToChat("Error: " + e.getMessage(), Color.RED, false);
-                } finally {
-                    // Re-enable the input field and send button
+                    
+                    // Remove the loading indicator
+                    removeLoadingIndicator();
+                    
+                    // Display error message
+                    appendToChat("Sorry, I encountered an error while processing your request. Please try again.", Color.RED, false);
+                    
+                    // Re-enable input
                     messageField.setEnabled(true);
                     sendButton.setEnabled(true);
                     messageField.requestFocusInWindow();
                 }
             }
         }.execute();
+    }
+    
+    /**
+     * Gets information about the currently selected element in the test plan
+     * 
+     * @return A formatted string with information about the current element, or null if no element is selected
+     */
+    private String getCurrentElementInfo() {
+        try {
+            GuiPackage guiPackage = GuiPackage.getInstance();
+            if (guiPackage == null) {
+                log.warn("Cannot get element info: GuiPackage is null");
+                return null;
+            }
+            
+            JMeterTreeNode currentNode = guiPackage.getTreeListener().getCurrentNode();
+            if (currentNode == null) {
+                log.warn("No node is currently selected in the test plan");
+                return null;
+            }
+            
+            // Get the test element
+            TestElement element = currentNode.getTestElement();
+            if (element == null) {
+                log.warn("Selected node does not have a test element");
+                return null;
+            }
+            
+            // Build information about the element
+            StringBuilder info = new StringBuilder();
+            info.append("# ").append(currentNode.getName()).append(" (").append(element.getClass().getSimpleName()).append(")\n\n");
+            
+            // Add description based on element type
+            String elementType = element.getClass().getSimpleName();
+            info.append(getElementDescription(elementType)).append("\n\n");
+            
+            // Add properties
+            info.append("## Properties\n\n");
+            
+            // Get all property names
+            PropertyIterator propertyIterator = element.propertyIterator();
+            while (propertyIterator.hasNext()) {
+                JMeterProperty property = propertyIterator.next();
+                String propertyName = property.getName();
+                String propertyValue = property.getStringValue();
+                
+                // Skip empty properties and internal JMeter properties
+                if (!propertyValue.isEmpty() && !propertyName.startsWith("TestElement.") && !propertyName.equals("guiclass")) {
+                    // Format the property name for better readability
+                    String formattedName = propertyName.replace(".", " ").replace("_", " ");
+                    formattedName = formattedName.substring(0, 1).toUpperCase() + formattedName.substring(1);
+                    
+                    info.append("- **").append(formattedName).append("**: ").append(propertyValue).append("\n");
+                }
+            }
+            
+            // Add hierarchical information
+            info.append("\n## Location in Test Plan\n\n");
+            
+            // Get parent node
+            TreeNode parent = currentNode.getParent();
+            if (parent instanceof JMeterTreeNode) {
+                JMeterTreeNode parentNode = (JMeterTreeNode) parent;
+                info.append("- Parent: **").append(parentNode.getName()).append("** (").append(parentNode.getTestElement().getClass().getSimpleName()).append(")\n");
+            }
+            
+            // Get child nodes
+            if (currentNode.getChildCount() > 0) {
+                info.append("- Children: ").append(currentNode.getChildCount()).append("\n");
+                for (int i = 0; i < currentNode.getChildCount(); i++) {
+                    JMeterTreeNode childNode = (JMeterTreeNode) currentNode.getChildAt(i);
+                    info.append("  - **").append(childNode.getName()).append("** (").append(childNode.getTestElement().getClass().getSimpleName()).append(")\n");
+                }
+            } else {
+                info.append("- No children\n");
+            }
+            
+            // Add suggestions for what can be added to this element
+            info.append("\n## Suggested Elements\n\n");
+            String[][] suggestions = getSuggestionsForNodeType(currentNode.getStaticLabel().toLowerCase());
+            if (suggestions.length > 0) {
+                info.append("You can add the following elements to this node:\n\n");
+                for (String[] suggestion : suggestions) {
+                    info.append("- ").append(suggestion[0]).append("\n");
+                }
+            } else {
+                info.append("No specific suggestions for this element type.\n");
+            }
+            
+            return info.toString();
+        } catch (Exception e) {
+            log.error("Error getting current element info", e);
+            return "Error retrieving element information: " + e.getMessage();
+        }
+    }
+    
+    /**
+     * Gets a description for a specific element type
+     * 
+     * @param elementType The type of element
+     * @return A description of the element
+     */
+    private String getElementDescription(String elementType) {
+        // Convert to lowercase for case-insensitive comparison
+        String type = elementType.toLowerCase();
+        
+        if (type.contains("testplan")) {
+            return "The Test Plan is the root element of a JMeter test. It defines global settings and variables for the test.";
+        } else if (type.contains("threadgroup")) {
+            return "Thread Groups simulate users accessing your application. Each thread represents a user, and you can configure the number of threads, ramp-up period, and loop count.";
+        } else if (type.contains("httpsampler") || type.contains("httprequest")) {
+            return "HTTP Samplers send HTTP/HTTPS requests to a web server. You can configure the URL, method, parameters, and other settings.";
+        } else if (type.contains("loopcontroller")) {
+            return "Loop Controllers repeat their child elements a specified number of times or indefinitely.";
+        } else if (type.contains("ifcontroller")) {
+            return "If Controllers execute their child elements only if a condition is true. The condition can be a JavaScript expression or a variable reference.";
+        } else if (type.contains("whilecontroller")) {
+            return "While Controllers execute their child elements repeatedly as long as a condition is true.";
+        } else if (type.contains("transactioncontroller")) {
+            return "Transaction Controllers group samplers together to measure the total time taken by all samplers within the transaction.";
+        } else if (type.contains("runtimecontroller")) {
+            return "Runtime Controllers execute their child elements for a specified amount of time.";
+        } else if (type.contains("responseassert")) {
+            return "Response Assertions validate the response from a sampler, such as checking for specific text or patterns.";
+        } else if (type.contains("jsonpathassert") || type.contains("jsonassertion")) {
+            return "JSON Path Assertions validate JSON responses using JSONPath expressions.";
+        } else if (type.contains("durationassert")) {
+            return "Duration Assertions validate that a sampler completes within a specified time.";
+        } else if (type.contains("sizeassert")) {
+            return "Size Assertions validate the size of a response.";
+        } else if (type.contains("xpathassert")) {
+            return "XPath Assertions validate XML responses using XPath expressions.";
+        } else if (type.contains("constanttimer")) {
+            return "Constant Timers add a fixed delay between sampler executions.";
+        } else if (type.contains("uniformrandomtimer")) {
+            return "Uniform Random Timers add a random delay between sampler executions, with a uniform distribution.";
+        } else if (type.contains("gaussianrandomtimer")) {
+            return "Gaussian Random Timers add a random delay between sampler executions, with a Gaussian (normal) distribution.";
+        } else if (type.contains("poissonrandomtimer")) {
+            return "Poisson Random Timers add a random delay between sampler executions, with a Poisson distribution.";
+        } else if (type.contains("csvdataset")) {
+            return "CSV Data Set Config elements read data from CSV files to parameterize your test.";
+        } else if (type.contains("headermanager")) {
+            return "HTTP Header Manager elements add HTTP headers to your requests.";
+        } else if (type.contains("viewresultstree")) {
+            return "View Results Tree listeners display detailed results for each sampler, including request and response data.";
+        } else if (type.contains("aggregatereport")) {
+            return "Aggregate Report listeners display summary statistics for each sampler, such as average response time and throughput.";
+        } else if (type.contains("extractor") || type.contains("postprocessor")) {
+            if (type.contains("jsonpath")) {
+                return "JSON Path Extractors extract values from JSON responses using JSONPath expressions.";
+            } else if (type.contains("xpath")) {
+                return "XPath Extractors extract values from XML responses using XPath expressions.";
+            } else if (type.contains("regex")) {
+                return "Regular Expression Extractors extract values from responses using regular expressions.";
+            } else if (type.contains("boundary")) {
+                return "Boundary Extractors extract values from responses using boundary strings.";
+            }
+            return "Extractors extract values from responses for use in subsequent requests.";
+        }
+        
+        // Generic description for unknown element types
+        return "This is a " + elementType + " element in your JMeter test plan.";
     }
     
     /**
