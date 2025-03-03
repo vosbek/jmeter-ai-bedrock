@@ -1242,7 +1242,10 @@ public class AiChatPanel extends JPanel {
 
         // Check if this is an element request
         String elementResponse = JMeterElementRequestHandler.processElementRequest(message);
-        if (elementResponse != null) {
+        
+        // Only process as an element request if it's a valid request
+        // This prevents general conversation from being interpreted as element requests
+        if (elementResponse != null && !elementResponse.contains("I couldn't understand what to do with")) {
             log.info("Detected element request, returning structured response");
             processAiResponse(elementResponse);
             return;

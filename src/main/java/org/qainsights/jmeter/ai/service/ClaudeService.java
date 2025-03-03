@@ -171,18 +171,7 @@ public class ClaudeService {
 
     public String generateResponse(List<String> conversation) {
         try {
-            // Check if the last message is asking to add or delete a JMeter element
-            if (!conversation.isEmpty()) {
-                String lastMessage = conversation.get(conversation.size() - 1);
-                String response = JMeterElementRequestHandler.processElementRequest(lastMessage);
-                if (response != null) {
-                    return response;
-                }
-            }
-
-            // Limit conversation history to configured size
-            int startIndex = Math.max(0, conversation.size() - maxHistorySize);
-            List<String> limitedConversation = conversation.subList(startIndex, conversation.size());
+            log.info("Generating response for conversation with {} messages", conversation.size());
 
             // Ensure a model is set
             if (currentModelId == null || currentModelId.isEmpty()) {
@@ -196,17 +185,25 @@ public class ClaudeService {
                 log.warn("Invalid temperature value ({}), defaulting to: {}", temperature, 0.7f);
             }
 
-            // Log which model is being used for this message
+            // Log which model is being used for this conversation
             log.info("Generating response using model: {} and temperature: {}", currentModelId, temperature);
             log.info("Using system prompt (first 100 chars): {}", systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
 
+            // Limit conversation history to last 10 messages to avoid token limits
+            List<String> limitedConversation = conversation;
+            if (conversation.size() > 10) {
+                limitedConversation = conversation.subList(conversation.size() - 10, conversation.size());
+                log.info("Limiting conversation to last {} messages", limitedConversation.size());
+            }
+
+            // Build the request parameters
             MessageCreateParams.Builder paramsBuilder = MessageCreateParams.builder()
                     .maxTokens(1024L)
                     .temperature(temperature)
                     .model(currentModelId)
                     .system(systemPrompt);
 
-            // Add messages alternating between user and assistant
+            // Add messages from the conversation history
             for (int i = 0; i < limitedConversation.size(); i++) {
                 String msg = limitedConversation.get(i);
                 if (i % 2 == 0) {
@@ -230,7 +227,10 @@ public class ClaudeService {
             return String.valueOf(message.content().get(0).text().get().text());
         } catch (Exception e) {
             log.error("Error generating response", e);
-            return "Error: " + e.getMessage();
+            
+            // Extract and format error message for better readability
+            String errorMessage = extractUserFriendlyErrorMessage(e);
+            return "Error: " + errorMessage;
         }
     }
 
@@ -282,8 +282,64 @@ public class ClaudeService {
             return String.valueOf(response.content().get(0).text().get().text());
         } catch (Exception e) {
             log.error("Error generating direct response", e);
-            return "Error: " + e.getMessage();
+            
+            // Extract and format error message for better readability
+            String errorMessage = extractUserFriendlyErrorMessage(e);
+            return "Error: " + errorMessage;
         }
+    }
+    
+    /**
+     * Extracts a user-friendly error message from an exception
+     * 
+     * @param e The exception to extract the error message from
+     * @return A user-friendly error message
+     */
+    private String extractUserFriendlyErrorMessage(Exception e) {
+        String errorMessage = e.getMessage();
+        
+        // Check for credit balance error
+        if (errorMessage != null && errorMessage.contains("credit balance is too low")) {
+            return "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.";
+        }
+        
+        // Check for API key error
+        if (errorMessage != null && errorMessage.contains("invalid_api_key")) {
+            return "Invalid API key. Please check your API key and try again.";
+        }
+        
+        // Check for rate limit error
+        if (errorMessage != null && errorMessage.contains("rate_limit_exceeded")) {
+            return "Rate limit exceeded. Please try again later.";
+        }
+        
+        // Check for model not found error
+        if (errorMessage != null && errorMessage.contains("model_not_found")) {
+            return "The selected model was not found. Please select a different model.";
+        }
+        
+        // Check for context length error
+        if (errorMessage != null && errorMessage.contains("context_length_exceeded")) {
+            return "The conversation is too long. Please start a new conversation.";
+        }
+        
+        // For other errors, provide a cleaner message
+        if (errorMessage != null) {
+            // Extract the actual error message from the AnthropicError format
+            if (errorMessage.contains("AnthropicError")) {
+                // Try to extract the message field from the error JSON
+                int messageStart = errorMessage.indexOf("message=");
+                if (messageStart != -1) {
+                    int messageEnd = errorMessage.indexOf("}", messageStart);
+                    if (messageEnd != -1) {
+                        return errorMessage.substring(messageStart + 8, messageEnd);
+                    }
+                }
+            }
+        }
+        
+        // If we couldn't extract a specific error message, return a generic one
+        return "An error occurred while communicating with the Anthropic API. Please try again later.";
     }
 
     public String getName() {

@@ -14,18 +14,18 @@ import java.util.Objects;
 
 public class AiMenuItem extends JMenuItem implements ActionListener{
     private static final Logger log = LoggerFactory.getLogger(AiMenuItem.class);
-    private static final Action vtg = new AI();
+    private static final Action ai = new AI();
     private AiChatPanel currentChatPanel;
     private JSplitPane splitPane;
 
     public AiMenuItem() {
-        super(vtg);
+        super(ai);
         addActionListener(this);
         addToolbarIcon();
     }
 
     public static ImageIcon getButtonIcon(int pixelSize) {
-        String sizedImage = String.format("/org/qainsights/jmeter/validatetg/validate-tg-icon-%2dx%2d.png", pixelSize, pixelSize);
+        String sizedImage = String.format("/org/qainsights/jmeter/ai/featherwand-%dx%d.png", pixelSize, pixelSize);
         return new ImageIcon(Objects.requireNonNull(AiMenuItem.class.getResource(sizedImage)));
     }
 
@@ -87,10 +87,9 @@ public class AiMenuItem extends JMenuItem implements ActionListener{
         try {
             log.info("Calling AI panel");
             openAiChatPanel();
-//            ActionRouter.getInstance().doActionNow(e);
         }
         catch (Exception err) {
-            log.debug("Error while TG action performed: " + err);
+            log.debug("Error while AI action performed: " + err);
         }
     }
 
