@@ -4,6 +4,8 @@ This plugin provides a simple way to chat with AI in JMeter. Feather Wand serves
 
 > 🪄 **About the name**: The name "Feather Wand" was suggested by my children who were inspired by an episode of the animated show Bluey. In the episode, a simple feather becomes a magical wand that transforms the ordinary into something special (heavy) - much like how this plugin aims to transform your JMeter experience with a touch of AI magic!
 
+![Feather Wand](./images/Feather-Wand-AI-Agent-JMeter.png)
+
 ## ✨ Features
 
 - Chat with AI directly within JMeter
@@ -56,3 +58,11 @@ Use the `@this` command in your message to get detailed information about the cu
 - "What are the best practices for @this?"
 
 Feather Wand will analyze the selected element and provide tailored information and advice.
+
+## 🗝️ How to get an Anthropic API key?
+
+1. Go to [Anthropic API](https://www.anthropic.com/) website
+2. Sign up for an account
+3. Create a new API key
+4. Copy the API key and paste it into the `anthropic.api.key` property in your `jmeter.properties` file
+5. For more information about the API key, visit the [API Key documentation](https://www.anthropic.com/api)
