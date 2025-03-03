@@ -22,6 +22,8 @@ public class ClaudeService {
     private float temperature;
     private final AnthropicClient client;
     private String systemPrompt;
+    private boolean systemPromptInitialized = false;
+    private long maxTokens;
 
     // Default system prompt to focus responses on JMeter
     private static final String DEFAULT_JMETER_SYSTEM_PROMPT = 
@@ -117,6 +119,7 @@ public class ClaudeService {
         // Get default model from properties or use SONNET if not specified
         this.currentModelId = AiConfig.getProperty("claude.default.model", "claude-3-sonnet-20240229");
         this.temperature = Float.parseFloat(AiConfig.getProperty("claude.temperature", "0.7"));
+        this.maxTokens = Long.parseLong(AiConfig.getProperty("claude.max.tokens", "1024"));
         
         // Load system prompt from properties or use default
         try {
@@ -164,6 +167,24 @@ public class ClaudeService {
         return temperature;
     }
 
+    public long getMaxTokens() {
+        return maxTokens;
+    }
+
+    public void setMaxTokens(long maxTokens) {
+        this.maxTokens = maxTokens;
+        log.info("Max tokens set to: {}", maxTokens);
+    }
+    
+    /**
+     * Resets the system prompt initialization flag.
+     * This should be called when starting a new conversation.
+     */
+    public void resetSystemPromptInitialization() {
+        this.systemPromptInitialized = false;
+        log.info("Reset system prompt initialization flag");
+    }
+
     public String sendMessage(String message) {
         log.info("Sending message to Claude: {}", message);
         return generateResponse(java.util.Collections.singletonList(message));
@@ -187,21 +208,37 @@ public class ClaudeService {
 
             // Log which model is being used for this conversation
             log.info("Generating response using model: {} and temperature: {}", currentModelId, temperature);
-            log.info("Using system prompt (first 100 chars): {}", systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
+            
+            // Only log system prompt info if it's the first message in the conversation
+            boolean isFirstMessage = conversation.size() <= 1;
+            if (isFirstMessage) {
+                log.info("Using system prompt (first 100 chars): {}", 
+                    systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
+                systemPromptInitialized = true;
+            } else {
+                log.info("Using previously initialized conversation with system prompt");
+            }
 
             // Limit conversation history to last 10 messages to avoid token limits
             List<String> limitedConversation = conversation;
-            if (conversation.size() > 10) {
-                limitedConversation = conversation.subList(conversation.size() - 10, conversation.size());
+            if (conversation.size() > maxHistorySize) {
+                limitedConversation = conversation.subList(conversation.size() - maxHistorySize, conversation.size());
                 log.info("Limiting conversation to last {} messages", limitedConversation.size());
             }
 
             // Build the request parameters
             MessageCreateParams.Builder paramsBuilder = MessageCreateParams.builder()
-                    .maxTokens(1024L)
+                    .maxTokens(maxTokens)
                     .temperature(temperature)
-                    .model(currentModelId)
-                    .system(systemPrompt);
+                    .model(currentModelId);
+            
+            // Only include the system prompt for the first message in a conversation
+            if (isFirstMessage) {
+                paramsBuilder.system(systemPrompt);
+                log.info("Including system prompt in request (length: {})", systemPrompt.length());
+            } else {
+                log.info("Skipping system prompt to save tokens (already sent in previous messages)");
+            }
 
             // Add messages from the conversation history
             for (int i = 0; i < limitedConversation.size(); i++) {
@@ -216,9 +253,9 @@ public class ClaudeService {
             }
 
             MessageCreateParams params = paramsBuilder.build();
-            log.info("Request parameters: maxTokens={}, temperature={}, model={}, systemPromptLength={}, messagesCount={}",
+            log.info("Request parameters: maxTokens={}, temperature={}, model={}, messagesCount={}",
                     params.maxTokens(), params.temperature(), params.model(), 
-                    systemPrompt.length(), limitedConversation.size());
+                    limitedConversation.size());
 
             Message message = client.messages().create(params);
 
@@ -261,13 +298,15 @@ public class ClaudeService {
 
             // Log which model is being used for this message
             log.info("Generating direct response using model: {} and temperature: {}", currentModelId, temperature);
-            log.info("Using system prompt (first 100 chars): {}", systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
+            log.info("Using system prompt (first 100 chars): {}", 
+                systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
 
+            // For direct responses, we always include the system prompt since it's a one-off interaction
             MessageCreateParams params = MessageCreateParams.builder()
-                    .maxTokens(1024L)
+                    .maxTokens(maxTokens)
                     .temperature(temperature)
                     .model(currentModelId)
-                    .system(systemPrompt)
+                    .system(systemPrompt)  // Always include system prompt for direct responses
                     .addUserMessage(message)
                     .build();
             

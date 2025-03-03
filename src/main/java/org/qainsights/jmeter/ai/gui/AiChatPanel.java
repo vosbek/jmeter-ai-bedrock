@@ -232,6 +232,9 @@ public class AiChatPanel extends JPanel {
         // Reset the input field
         messageField.setText("");
         
+        // Reset the systemPromptInitialized flag in ClaudeService
+        claudeService.resetSystemPromptInitialization();
+        
         // Display welcome message
         displayWelcomeMessage();
         
@@ -286,6 +289,11 @@ public class AiChatPanel extends JPanel {
         
         // Process the message
         sendUserMessage(message);
+        
+        // Request focus back to the input field
+        SwingUtilities.invokeLater(() -> {
+            messageField.requestFocusInWindow();
+        });
     }
 
     private void appendToChat(String message, Color color, boolean parseMarkdown) {
@@ -1213,6 +1221,9 @@ public class AiChatPanel extends JPanel {
                             // Process the AI response
                             processAiResponse(response);
                             
+                            // Add the AI response to the conversation history
+                            conversationHistory.add(response);
+                            
                             // Re-enable input
                             messageField.setEnabled(true);
                             sendButton.setEnabled(true);
@@ -1276,6 +1287,9 @@ public class AiChatPanel extends JPanel {
                     
                     // Process the AI response
                     processAiResponse(response);
+                    
+                    // Add the AI response to the conversation history
+                    conversationHistory.add(response);
                     
                     // Re-enable input
                     messageField.setEnabled(true);
@@ -1423,11 +1437,11 @@ public class AiChatPanel extends JPanel {
             return "Response Assertions validate the response from a sampler, such as checking for specific text or patterns.";
         } else if (type.contains("jsonpathassert") || type.contains("jsonassertion")) {
             return "JSON Path Assertions validate JSON responses using JSONPath expressions.";
-        } else if (type.contains("durationassert")) {
+        } else if (type.contains("durationassertion")) {
             return "Duration Assertions validate that a sampler completes within a specified time.";
-        } else if (type.contains("sizeassert")) {
+        } else if (type.contains("sizeassertion")) {
             return "Size Assertions validate the size of a response.";
-        } else if (type.contains("xpathassert")) {
+        } else if (type.contains("xpathassertion")) {
             return "XPath Assertions validate XML responses using XPath expressions.";
         } else if (type.contains("constanttimer")) {
             return "Constant Timers add a fixed delay between sampler executions.";
@@ -1489,6 +1503,7 @@ public class AiChatPanel extends JPanel {
      */
     private void processAiResponse(String response) {
         if (response == null || response.isEmpty()) {
+            appendToChat("No response from AI. Please try again.", Color.RED, false);
             log.warn("Empty AI response");
             return;
         }
