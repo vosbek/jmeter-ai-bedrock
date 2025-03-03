@@ -1183,7 +1183,12 @@ public class AiChatPanel extends JPanel {
                         String enhancedMessage = "The user asked: \"" + message + "\"\n\n" +
                                 "Here is information about the currently selected element in the JMeter test plan:\n\n" +
                                 currentElementInfo + "\n\n" +
-                                "Please provide a helpful response about this element based on the user's question and the element information provided.";
+                                "Based on the above information about the selected JMeter element and the user's question, " +
+                                "please provide a helpful, specific response that addresses their query. " +
+                                "Include practical advice on how to configure, use, or optimize this element effectively. " +
+                                "If appropriate, suggest compatible elements that would work well with this one, " +
+                                "and explain how they would interact. " +
+                                "Focus on JMeter-specific best practices that apply to this particular element.";
                         
                         // Get the currently selected model from the dropdown
                         ModelInfo selectedModel = (ModelInfo) modelSelector.getSelectedItem();
