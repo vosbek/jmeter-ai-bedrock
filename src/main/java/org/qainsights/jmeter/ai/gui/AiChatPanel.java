@@ -2,6 +2,7 @@ package org.qainsights.jmeter.ai.gui;
 
 import org.qainsights.jmeter.ai.service.ClaudeService;
 import org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler;
+import org.qainsights.jmeter.ai.utils.JMeterElementManager;
 import org.qainsights.jmeter.ai.utils.Models;
 
 import org.apache.jmeter.gui.GuiPackage;
@@ -283,7 +284,8 @@ public class AiChatPanel extends JPanel {
                 "I can help you create and modify JMeter test plans. You can ask me to:\n" +
                 "- Add JMeter elements to your test plan\n" +
                 "- Optimize your test plan for better performance\n" +
-                "- Get help with JMeter best practices\n\n" +
+                "- Get help with JMeter Groovy scripting and best practices and more\n\n" +
+                "A(I) can make mistakes, so double-check it.\n\n" +                
                 "How can I assist you today?\n\n";
         
         // Create a style for the welcome message
@@ -462,12 +464,18 @@ public class AiChatPanel extends JPanel {
                     // Add the code area to the panel
                     codePanel.add(codeArea, BorderLayout.CENTER);
                     
-                    // Insert a placeholder for the component
+                    // Insert a placeholder for the component at the end of the document
+                    int pos = doc.getLength();
+                    doc.insertString(pos, "\n", new SimpleAttributeSet());
+                    pos = doc.getLength();
+                    doc.insertString(pos, " ", new SimpleAttributeSet());
+                    
+                    // Create a style for the component
                     SimpleAttributeSet componentStyle = new SimpleAttributeSet();
                     StyleConstants.setComponent(componentStyle, codePanel);
                     
                     // Apply the style to the placeholder
-                    doc.insertString(placeholderPos, " ", componentStyle);
+                    doc.setCharacterAttributes(pos, 1, componentStyle, false);
                 }
             }
         }
@@ -664,14 +672,22 @@ public class AiChatPanel extends JPanel {
             // Create a request to add the element
             String request = "add " + finalNormalizedType;
             
-            // Process the request
-            String response = JMeterElementRequestHandler.processElementRequest(request);
+            // Process the request directly without involving AI
+            boolean success = JMeterElementManager.addElement(finalNormalizedType, null);
             
             // Select the newly added element
             selectLastAddedElement();
 
             // Process the response
-            processAiResponse(response);
+            if (success) {
+                String elementName = JMeterElementManager.getDefaultNameForElement(finalNormalizedType);
+                String successResponse = "I've added a " + elementName + " to your test plan. You can now configure it as needed.";
+                processAiResponse(successResponse);
+            } else {
+                String errorResponse = "I couldn't add the " + JMeterElementManager.getDefaultNameForElement(finalNormalizedType) + 
+                    ". Please make sure you have selected an appropriate location in the test plan.";
+                processAiResponse(errorResponse);
+            }
         });
         
         return addButton;
@@ -772,8 +788,10 @@ public class AiChatPanel extends JPanel {
         try {
             StyledDocument doc = chatArea.getStyledDocument();
             
-            // Insert a placeholder for the component
+            // Insert a placeholder for the component at the end of the document
             int pos = doc.getLength();
+            doc.insertString(pos, "\n", new SimpleAttributeSet());
+            pos = doc.getLength();
             doc.insertString(pos, " ", new SimpleAttributeSet());
             
             // Create a style for the component
@@ -805,26 +823,29 @@ public class AiChatPanel extends JPanel {
                     {"HTTP Sampler", "httpsampler"},
                     {"Loop Controller", "loopcontroller"},
                     {"CSV Data Set", "csvdataset"},
-                    {"Constant Timer", "constanttimer"}
+                    {"JSR223 Sampler", "jsr223sampler"}
                 };
+                
             case "httpsampler":
                 return new String[][] {
                     {"Response Assertion", "responseassert"},
-                    {"JSON Path Extractor", "jsonpathextractor"},
+                    {"Regex Extractor", "regexextractor"},
                     {"Constant Timer", "constanttimer"},
-                    {"View Results Tree", "viewresultstree"}
+                    {"JSR223 Post Processor", "jsr223postprocessor"}
                 };
+                
             case "loopcontroller":
+            case "ifcontroller":
+            case "whilecontroller":
+            case "transactioncontroller":
+            case "runtimecontroller":
                 return new String[][] {
                     {"HTTP Sampler", "httpsampler"},
-                    {"If Controller", "ifcontroller"},
-                    {"Transaction Controller", "transactioncontroller"}
+                    {"JSR223 Sampler", "jsr223sampler"},
+                    {"Loop Controller", "loopcontroller"},
+                    {"If Controller", "ifcontroller"}
                 };
-            case "csvdataset":
-                return new String[][] {
-                    {"HTTP Sampler", "httpsampler"},
-                    {"HTTP Header Manager", "headermanager"}
-                };
+                
             case "responseassert":
             case "jsonassertion":
             case "durationassertion":
@@ -832,32 +853,79 @@ public class AiChatPanel extends JPanel {
             case "xpathassertion":
                 return new String[][] {
                     {"View Results Tree", "viewresultstree"},
-                    {"Aggregate Report", "aggregatereport"}
+                    {"HTTP Sampler", "httpsampler"},
+                    {"JSR223 Post Processor", "jsr223postprocessor"},
+                    {"Regex Extractor", "regexextractor"}
                 };
+                
             case "constanttimer":
             case "uniformrandomtimer":
             case "gaussianrandomtimer":
             case "poissonrandomtimer":
                 return new String[][] {
                     {"HTTP Sampler", "httpsampler"},
-                    {"Response Assertion", "responseassert"}
+                    {"JSR223 Sampler", "jsr223sampler"},
+                    {"Loop Controller", "loopcontroller"},
+                    {"View Results Tree", "viewresultstree"}
                 };
+                
             case "regexextractor":
             case "xpathextractor":
             case "jsonpathextractor":
             case "boundaryextractor":
                 return new String[][] {
                     {"Response Assertion", "responseassert"},
-                    {"If Controller", "ifcontroller"}
+                    {"View Results Tree", "viewresultstree"},
+                    {"JSR223 Post Processor", "jsr223postprocessor"},
+                    {"HTTP Sampler", "httpsampler"}
                 };
+                
+            case "jsr223sampler":
+                return new String[][] {
+                    {"Response Assertion", "responseassert"},
+                    {"JSR223 Pre Processor", "jsr223preprocessor"},
+                    {"JSR223 Post Processor", "jsr223postprocessor"},
+                    {"View Results Tree", "viewresultstree"}
+                };
+                
+            case "jsr223preprocessor":
+                return new String[][] {
+                    {"JSR223 Sampler", "jsr223sampler"},
+                    {"HTTP Sampler", "httpsampler"},
+                    {"JSR223 Post Processor", "jsr223postprocessor"},
+                    {"Response Assertion", "responseassert"}
+                };
+                
+            case "jsr223postprocessor":
+                return new String[][] {
+                    {"Response Assertion", "responseassert"},
+                    {"View Results Tree", "viewresultstree"},
+                    {"JSR223 Sampler", "jsr223sampler"},
+                    {"HTTP Sampler", "httpsampler"}
+                };
+                
             case "viewresultstree":
             case "aggregatereport":
                 return new String[][] {
                     {"Response Assertion", "responseassert"},
                     {"Duration Assertion", "durationassert"}
                 };
+                
+            case "csvdataset":
+                return new String[][] {
+                    {"HTTP Sampler", "httpsampler"},
+                    {"HTTP Header Manager", "headermanager"},
+                    {"Thread Group", "threadgroup"},
+                    {"JSR223 Sampler", "jsr223sampler"}
+                };
+                
             default:
-                return new String[0][0];
+                return new String[][] {
+                    {"Thread Group", "threadgroup"},
+                    {"HTTP Request", "httprequest"},
+                    {"View Results Tree", "viewresultstree"},
+                    {"JSR223 Sampler", "jsr223sampler"}
+                };
         }
     }
     
@@ -941,8 +1009,8 @@ public class AiChatPanel extends JPanel {
                 return new String[][] {
                     {"HTTP Request", "httprequest"},
                     {"Loop Controller", "loopcontroller"},
-                    {"If Controller", "ifcontroller"},
-                    {"While Controller", "whilecontroller"}
+                    {"JSR223 Sampler", "jsr223sampler"},
+                    {"If Controller", "ifcontroller"}
                 };
                 
             case "http request":
@@ -950,8 +1018,8 @@ public class AiChatPanel extends JPanel {
                 return new String[][] {
                     {"Response Assertion", "responseassert"},
                     {"JSON Path Assertion", "jsonpathassert"},
-                    {"Duration Assertion", "durationassert"},
-                    {"Size Assertion", "sizeassert"}
+                    {"JSR223 Pre Processor", "jsr223preprocessor"},
+                    {"JSR223 Post Processor", "jsr223postprocessor"}
                 };
                 
             case "loop controller":
@@ -961,9 +1029,9 @@ public class AiChatPanel extends JPanel {
             case "runtime controller":
                 return new String[][] {
                     {"HTTP Request", "httprequest"},
+                    {"JSR223 Sampler", "jsr223sampler"},
                     {"Loop Controller", "loopcontroller"},
-                    {"If Controller", "ifcontroller"},
-                    {"While Controller", "whilecontroller"}
+                    {"If Controller", "ifcontroller"}
                 };
                 
             case "view results tree":
@@ -1026,17 +1094,36 @@ public class AiChatPanel extends JPanel {
                     {"HTTP Header Manager", "headerManager"}
                 };
                 
+            case "jsr223 sampler":
+            case "jsr223sampler":
+                return new String[][] {
+                    {"Response Assertion", "responseassert"},
+                    {"JSR223 Pre Processor", "jsr223preprocessor"},
+                    {"JSR223 Post Processor", "jsr223postprocessor"},
+                    {"View Results Tree", "viewresultstree"}
+                };
+                
+            case "jsr223 preprocessor":
+            case "jsr223preprocessor":
+            case "jsr223 postprocessor":
+            case "jsr223postprocessor":
+                return new String[][] {
+                    {"HTTP Request", "httprequest"},
+                    {"JSR223 Sampler", "jsr223sampler"},
+                    {"Response Assertion", "responseassert"},
+                    {"View Results Tree", "viewresultstree"}
+                };
+                
             default:
-                // Default suggestions for unknown node types
                 return new String[][] {
                     {"Thread Group", "threadgroup"},
                     {"HTTP Request", "httprequest"},
                     {"View Results Tree", "viewresultstree"},
-                    {"Loop Controller", "loopcontroller"}
+                    {"JSR223 Sampler", "jsr223sampler"}
                 };
         }
     }
-
+    
     /**
      * Maps a user-friendly element type to a normalized type that JMeter understands
      * 
@@ -1139,6 +1226,21 @@ public class AiChatPanel extends JPanel {
             }
             // Default to view results tree if no specific type is mentioned
             return "viewresultstree";
+        }
+        
+        if (elementType.contains("jsr223") || elementType.contains("jsr 223") || 
+            elementType.contains("javascript") || elementType.contains("groovy")) {
+            if (elementType.contains("sampler")) {
+                return "jsr223sampler";
+            }
+            if (elementType.contains("pre") && elementType.contains("processor")) {
+                return "jsr223preprocessor";
+            }
+            if (elementType.contains("post") && elementType.contains("processor")) {
+                return "jsr223postprocessor";
+            }
+            // Default to JSR223 sampler if no specific type is mentioned
+            return "jsr223sampler";
         }
         
         // Specific element types
@@ -1492,6 +1594,15 @@ public class AiChatPanel extends JPanel {
             return "View Results Tree listeners display detailed results for each sampler, including request and response data.";
         } else if (type.contains("aggregatereport")) {
             return "Aggregate Report listeners display summary statistics for each sampler, such as average response time and throughput.";
+        } else if (type.contains("jsr223")) {
+            if (type.contains("sampler")) {
+                return "JSR223 Samplers allow you to create custom requests using scripting languages like Groovy, JavaScript, or BeanShell. They are useful for complex logic that can't be handled by standard samplers.";
+            } else if (type.contains("pre") && type.contains("processor")) {
+                return "JSR223 PreProcessors execute scripts before a sampler runs. They can be used to set up variables, modify request parameters, or perform other preparation tasks.";
+            } else if (type.contains("post") && type.contains("processor")) {
+                return "JSR223 PostProcessors execute scripts after a sampler runs. They can extract data from responses, perform calculations, or modify variables based on the sampler's results.";
+            }
+            return "JSR223 elements allow you to use scripting languages like Groovy, JavaScript, or BeanShell to extend JMeter's functionality.";
         } else if (type.contains("extractor") || type.contains("postprocessor")) {
             if (type.contains("jsonpath")) {
                 return "JSON Path Extractors extract values from JSON responses using JSONPath expressions.";

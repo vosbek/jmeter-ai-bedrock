@@ -67,6 +67,12 @@ public class JMeterElementManager {
         // Listeners (most common)
         ELEMENT_CLASS_MAP.put("viewresultstree", "org.apache.jmeter.visualizers.ViewResultsFullVisualizer");
         ELEMENT_CLASS_MAP.put("aggregatereport", "org.apache.jmeter.report.gui.AggregateReportGui");
+
+        // JSR223 Elements
+        ELEMENT_CLASS_MAP.put("jsr223sampler", "org.apache.jmeter.testbeans.gui.TestBeanGUI");
+        ELEMENT_CLASS_MAP.put("jsr223preprocessor", "org.apache.jmeter.testbeans.gui.TestBeanGUI");
+        ELEMENT_CLASS_MAP.put("jsr223postprocessor", "org.apache.jmeter.testbeans.gui.TestBeanGUI");
+
     }
 
     /**
@@ -200,6 +206,144 @@ public class JMeterElementManager {
                     }
                 } catch (Exception e) {
                     log.error("Failed to create CSV Data Set", e);
+                    // Continue with normal element creation
+                }
+            }
+
+            // Special handling for JSR223 Sampler
+            if (normalizedType.equals("jsr223sampler")) {
+                log.info("Special handling for JSR223 Sampler");
+                try {
+                    // Create the JSR223 Sampler directly
+                    TestElement jsr223Sampler = (TestElement) Class.forName("org.apache.jmeter.protocol.java.sampler.JSR223Sampler").getDeclaredConstructor().newInstance();
+                    jsr223Sampler.setName(elementName != null && !elementName.isEmpty() ? elementName : "JSR223 Sampler");
+
+                    // Set the required properties for TestElement
+                    jsr223Sampler.setProperty(TestElement.TEST_CLASS, "org.apache.jmeter.protocol.java.sampler.JSR223Sampler");
+                    jsr223Sampler.setProperty(TestElement.GUI_CLASS, "org.apache.jmeter.testbeans.gui.TestBeanGUI");
+
+                    // Configure default JSR223 Sampler properties
+                    jsr223Sampler.setProperty("scriptLanguage", "groovy");
+                    jsr223Sampler.setProperty("cacheKey", true);
+                    jsr223Sampler.setProperty("script", "");
+
+                    log.info("Adding JSR223 Sampler to node: {}", currentNode.getName());
+
+                    // Add the element to the test plan
+                    try {
+                        guiPackage.getTreeModel().addComponent(jsr223Sampler, currentNode);
+                        log.info("Successfully added JSR223 Sampler to the tree model");
+
+                        // Configure the GUI for the new element
+                        guiPackage.getCurrentGui(); // This forces JMeter to update the GUI
+
+                        // Refresh the tree to show the new element
+                        try {
+                            guiPackage.getTreeModel().nodeStructureChanged(currentNode);
+                            log.info("Successfully refreshed the tree");
+                        } catch (Exception e) {
+                            log.error("Failed to refresh the tree", e);
+                        }
+
+                        return true;
+                    } catch (Exception e) {
+                        log.error("Failed to add JSR223 Sampler to the tree model", e);
+                        return false;
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to create JSR223 Sampler", e);
+                    // Continue with normal element creation
+                }
+            }
+
+            // Special handling for JSR223 PreProcessor
+            if (normalizedType.equals("jsr223preprocessor")) {
+                log.info("Special handling for JSR223 PreProcessor");
+                try {
+                    // Create the JSR223 PreProcessor directly
+                    TestElement jsr223PreProcessor = (TestElement) Class.forName("org.apache.jmeter.modifiers.JSR223PreProcessor").getDeclaredConstructor().newInstance();
+                    jsr223PreProcessor.setName(elementName != null && !elementName.isEmpty() ? elementName : "JSR223 PreProcessor");
+
+                    // Set the required properties for TestElement
+                    jsr223PreProcessor.setProperty(TestElement.TEST_CLASS, "org.apache.jmeter.modifiers.JSR223PreProcessor");
+                    jsr223PreProcessor.setProperty(TestElement.GUI_CLASS, "org.apache.jmeter.testbeans.gui.TestBeanGUI");
+
+                    // Configure default JSR223 PreProcessor properties
+                    jsr223PreProcessor.setProperty("scriptLanguage", "groovy");
+                    jsr223PreProcessor.setProperty("cacheKey", true);
+                    jsr223PreProcessor.setProperty("script", "");
+
+                    log.info("Adding JSR223 PreProcessor to node: {}", currentNode.getName());
+
+                    // Add the element to the test plan
+                    try {
+                        guiPackage.getTreeModel().addComponent(jsr223PreProcessor, currentNode);
+                        log.info("Successfully added JSR223 PreProcessor to the tree model");
+
+                        // Configure the GUI for the new element
+                        guiPackage.getCurrentGui(); // This forces JMeter to update the GUI
+
+                        // Refresh the tree to show the new element
+                        try {
+                            guiPackage.getTreeModel().nodeStructureChanged(currentNode);
+                            log.info("Successfully refreshed the tree");
+                        } catch (Exception e) {
+                            log.error("Failed to refresh the tree", e);
+                        }
+
+                        return true;
+                    } catch (Exception e) {
+                        log.error("Failed to add JSR223 PreProcessor to the tree model", e);
+                        return false;
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to create JSR223 PreProcessor", e);
+                    // Continue with normal element creation
+                }
+            }
+
+            // Special handling for JSR223 PostProcessor
+            if (normalizedType.equals("jsr223postprocessor")) {
+                log.info("Special handling for JSR223 PostProcessor");
+                try {
+                    // Create the JSR223 PostProcessor directly
+                    TestElement jsr223PostProcessor = (TestElement) Class.forName("org.apache.jmeter.extractor.JSR223PostProcessor").getDeclaredConstructor().newInstance();
+                    jsr223PostProcessor.setName(elementName != null && !elementName.isEmpty() ? elementName : "JSR223 PostProcessor");
+
+                    // Set the required properties for TestElement
+                    jsr223PostProcessor.setProperty(TestElement.TEST_CLASS, "org.apache.jmeter.extractor.JSR223PostProcessor");
+                    jsr223PostProcessor.setProperty(TestElement.GUI_CLASS, "org.apache.jmeter.testbeans.gui.TestBeanGUI");
+
+                    // Configure default JSR223 PostProcessor properties
+                    jsr223PostProcessor.setProperty("scriptLanguage", "groovy");
+                    jsr223PostProcessor.setProperty("cacheKey", true);
+                    jsr223PostProcessor.setProperty("script", "");
+
+                    log.info("Adding JSR223 PostProcessor to node: {}", currentNode.getName());
+
+                    // Add the element to the test plan
+                    try {
+                        guiPackage.getTreeModel().addComponent(jsr223PostProcessor, currentNode);
+                        log.info("Successfully added JSR223 PostProcessor to the tree model");
+
+                        // Configure the GUI for the new element
+                        guiPackage.getCurrentGui(); // This forces JMeter to update the GUI
+
+                        // Refresh the tree to show the new element
+                        try {
+                            guiPackage.getTreeModel().nodeStructureChanged(currentNode);
+                            log.info("Successfully refreshed the tree");
+                        } catch (Exception e) {
+                            log.error("Failed to refresh the tree", e);
+                        }
+
+                        return true;
+                    } catch (Exception e) {
+                        log.error("Failed to add JSR223 PostProcessor to the tree model", e);
+                        return false;
+                    }
+                } catch (Exception e) {
+                    log.error("Failed to create JSR223 PostProcessor", e);
                     // Continue with normal element creation
                 }
             }
@@ -455,6 +599,12 @@ public class JMeterElementManager {
                 return "View Results Tree";
             case "aggregatereport":
                 return "Aggregate Report";
+            case "jsr223sampler":
+                return "JSR223 Sampler";
+            case "jsr223preprocessor":
+                return "JSR223 PreProcessor";
+            case "jsr223postprocessor":
+                return "JSR223 PostProcessor";
             default:
                 // Convert camelCase to Title Case with spaces
                 String name = normalizedType.replaceAll("([a-z])([A-Z])", "$1 $2");
@@ -502,6 +652,7 @@ public class JMeterElementManager {
         categories.put("Timers", new StringBuilder());
         categories.put("Extractors", new StringBuilder());
         categories.put("Listeners", new StringBuilder());
+        categories.put("JSR223 Elements", new StringBuilder());
 
         // Add elements to their respective categories
         for (String key : ELEMENT_CLASS_MAP.keySet()) {
@@ -522,6 +673,8 @@ public class JMeterElementManager {
                 categories.get("Extractors").append("- ").append(getDefaultNameForElement(key)).append("\n");
             } else if (className.contains("visualizers") || className.contains("report")) {
                 categories.get("Listeners").append("- ").append(getDefaultNameForElement(key)).append("\n");
+            } else if (className.contains("JSR223")) {
+                categories.get("JSR223 Elements").append("- ").append(getDefaultNameForElement(key)).append("\n");
             }
         }
 
@@ -648,6 +801,12 @@ public class JMeterElementManager {
             if (normalizedType != null) {
                 if (normalizedType.equals("csvdataset")) {
                     return "org.apache.jmeter.config.CSVDataSet";
+                } else if (normalizedType.equals("jsr223sampler")) {
+                    return "org.apache.jmeter.protocol.java.sampler.JSR223Sampler";
+                } else if (normalizedType.equals("jsr223preprocessor")) {
+                    return "org.apache.jmeter.modifiers.JSR223PreProcessor";
+                } else if (normalizedType.equals("jsr223postprocessor")) {
+                    return "org.apache.jmeter.extractor.JSR223PostProcessor";
                 }
                 // Add more TestBeanGUI-based components as needed
             }
