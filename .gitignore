@@ -130,3 +130,4 @@ replay_pid*
 /dist/
 /nbdist/
 /.nb-gradle/
+.vscode/settings.json

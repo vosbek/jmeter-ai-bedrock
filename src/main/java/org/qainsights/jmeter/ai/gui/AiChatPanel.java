@@ -34,7 +34,7 @@ import com.anthropic.models.ModelInfo;
 
 public class AiChatPanel extends JPanel {
     private JTextPane chatArea;
-    private JTextField messageField;
+    private JTextArea messageField;
     private JButton sendButton;
     private List<String> conversationHistory;
     private ClaudeService claudeService;
@@ -202,16 +202,49 @@ public class AiChatPanel extends JPanel {
         
         // Create input panel with text field and send button
         JPanel inputPanel = new JPanel(new BorderLayout(5, 0));
-        messageField = new JTextField();
+        
+        // Create a JTextArea instead of JTextField for top-aligned text
+        messageField = new JTextArea(3, 20); // 3 rows tall
+        messageField.setLineWrap(true);
+        messageField.setWrapStyleWord(true);
+        messageField.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Color.LIGHT_GRAY),
+                BorderFactory.createEmptyBorder(5, 5, 5, 5)
+        ));
+        
+        // Add key listener to handle Enter key for sending messages
+        messageField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ENTER && !e.isShiftDown()) {
+                    e.consume(); // Prevent newline
+                    sendMessage();
+                }
+            }
+        });
+        
+        // Create a scroll pane for the message field (in case of long text)
+        JScrollPane messageScrollPane = new JScrollPane(messageField);
+        messageScrollPane.setBorder(BorderFactory.createEmptyBorder());
+        
+        // Style the send button with better contrast
         sendButton = new JButton("Send");
-        inputPanel.add(messageField, BorderLayout.CENTER);
+        sendButton.setBackground(new Color(240, 240, 240)); // Light gray background
+        sendButton.setForeground(new Color(0, 0, 0)); // Black text
+        sendButton.setFocusPainted(false);
+        sendButton.setFont(new Font(sendButton.getFont().getName(), Font.BOLD, 12));
+        sendButton.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(200, 200, 200), 1, true),
+                BorderFactory.createEmptyBorder(8, 12, 8, 12)
+        ));
+        
+        inputPanel.add(messageScrollPane, BorderLayout.CENTER);
         inputPanel.add(sendButton, BorderLayout.EAST);
         bottomPanel.add(inputPanel, BorderLayout.CENTER);
         
         add(bottomPanel, BorderLayout.SOUTH);
 
         sendButton.addActionListener(e -> sendMessage());
-        messageField.addActionListener(e -> sendMessage());
 
         conversationHistory = new ArrayList<>();
         
