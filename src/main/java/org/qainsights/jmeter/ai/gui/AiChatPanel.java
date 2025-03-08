@@ -1672,12 +1672,7 @@ public class AiChatPanel extends JPanel {
     private String getAiResponse(String message) {
         log.info("Getting AI response for message: {}", message);
         
-        // Check if this is a request for a performance test plan
-        String performanceTestPlanResponse = JMeterElementRequestHandler.processPerformanceTestPlanRequest(message);
-        if (performanceTestPlanResponse != null) {
-            log.info("Detected performance test plan request, returning structured response");
-            return performanceTestPlanResponse;
-        }
+  
         
         // Get the currently selected model from the dropdown
         ModelInfo selectedModel = (ModelInfo) modelSelector.getSelectedItem();
