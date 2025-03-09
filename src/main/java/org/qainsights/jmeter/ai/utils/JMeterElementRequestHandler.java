@@ -2,6 +2,7 @@ package org.qainsights.jmeter.ai.utils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -22,10 +23,10 @@ public class JMeterElementRequestHandler {
 
     // Pattern to match requests to add a JMeter element
     private static final Pattern ADD_ELEMENT_PATTERN = Pattern.compile(
-            "(?i)\\b(add|create|insert|include)\\b.*?(?:a|an)?\\s+([a-z0-9\\s-]+?)(?:\\s+(?:called|named|with name|with the name)?\\s+[\"']?([^\"']+?)[\"']?)?(?:\\s*$|\\s+(?:to|in)\\b)");
+            "(?i)\\b(add|create|insert|include)\\b\\s+(?:\\b(?:a|an)\\b\\s+)?([a-z0-9\\s-]{2,}?)(?:\\s+(?:called|named|with name|with the name)?\\s+[\"']?([^\"']+?)[\"']?)?(?:\\s*$|\\s+(?:to|in)\\b)");
 
     // Common synonyms and variations for element types
-    private static final Map<String, List<String>> ELEMENT_SYNONYMS = new HashMap<>();
+    private static final Map<String, List<String>> ELEMENT_SYNONYMS = new LinkedHashMap<>();
 
     static {
         // Initialize element synonyms
@@ -38,104 +39,203 @@ public class JMeterElementRequestHandler {
     private static void initializeElementSynonyms() {
         // Samplers (most common)
         addSynonyms("httpsampler", "http sampler", "http request", "web request", "http", "request",
-                "http request sampler");
+                "http request sampler", "web sampler", "rest request", "api request", "http api", "rest api");
 
         // Controllers (most common)
-        addSynonyms("loopcontroller", "loop controller", "loop", "repeat controller");
-        addSynonyms("ifcontroller", "if controller", "conditional controller", "condition");
-        addSynonyms("whilecontroller", "while controller", "while loop", "while");
-        addSynonyms("transactioncontroller", "transaction controller", "transaction", "tx controller");
-        addSynonyms("runtimecontroller", "runtime controller", "runtime", "timed controller");
+        addSynonyms("loopcontroller", "loop controller", "loop", "repeat controller", "for loop",
+                "iteration controller", "repeat");
+        addSynonyms("ifcontroller", "if controller", "conditional controller", "condition", "if statement",
+                "if condition", "branch controller");
+        addSynonyms("whilecontroller", "while controller", "while loop", "while", "do while", "repeat until",
+                "conditional loop");
+        addSynonyms("transactioncontroller", "transaction controller", "transaction", "tx controller", "tx",
+                "business transaction");
+        addSynonyms("runtimecontroller", "runtime controller", "runtime", "timed controller", "duration controller",
+                "time-based controller");
 
         // Config Elements (most common)
-        addSynonyms("headermanager", "header manager", "http headers", "headers");
-        addSynonyms("csvdataset", "csv data set", "csv", "data set", "csv config");
+        addSynonyms("headermanager", "header manager", "http headers", "headers", "request headers", "custom headers",
+                "http header config");
+        addSynonyms("csvdataset", "csv data set", "csv", "data set", "csv config", "test data", "data source",
+                "csv data source");
 
         // Thread Groups (essential)
-        addSynonyms("threadgroup", "thread group", "users", "virtual users");
+        addSynonyms("threadgroup", "thread group", "users", "virtual users", "vusers", "user group", "load generator",
+                "user threads", "concurrent users");
 
         // Assertions (most common)
-        addSynonyms("responseassert", "response assertion", "response validator", "text assertion");
-        addSynonyms("jsonassertion", "json assertion", "json path assertion", "json validator");
-        addSynonyms("durationassertion", "duration assertion", "response time assertion", "time assertion");
-        addSynonyms("sizeassertion", "size assertion", "response size assertion", "byte size assertion");
-        addSynonyms("xpathassertion", "xpath assertion", "xml assertion", "xml validator");
+        addSynonyms("responseassert", "response assertion", "response validator", "text assertion", "content assertion",
+                "verify response", "check response");
+        addSynonyms("jsonassertion", "json assertion", "json path assertion", "json validator", "json check",
+                "verify json", "json response check");
+        addSynonyms("durationassertion", "duration assertion", "response time assertion", "time assertion",
+                "timeout assertion", "performance assertion", "timing check");
+        addSynonyms("sizeassertion", "size assertion", "response size assertion", "byte size assertion",
+                "content length assertion", "payload size check");
+        addSynonyms("xpathassertion", "xpath assertion", "xml assertion", "xml validator", "xml check", "verify xml",
+                "xml response check");
 
         // Timers (most common)
-        addSynonyms("constanttimer", "constant timer", "fixed timer", "delay", "wait", "timer");
-        addSynonyms("uniformrandomtimer", "uniform random timer", "random timer", "uniform timer");
-        addSynonyms("gaussianrandomtimer", "gaussian random timer", "gaussian timer", "normal distribution timer");
-        addSynonyms("poissonrandomtimer", "poisson random timer", "poisson timer");
+        addSynonyms("constanttimer", "constant timer", "fixed timer", "delay", "wait", "timer", "pause", "sleep",
+                "think time");
+        addSynonyms("uniformrandomtimer", "uniform random timer", "random timer", "uniform timer", "random delay",
+                "variable delay");
+        addSynonyms("gaussianrandomtimer", "gaussian random timer", "gaussian timer", "normal distribution timer",
+                "bell curve timer");
+        addSynonyms("poissonrandomtimer", "poisson random timer", "poisson timer", "poisson distribution");
 
         // Extractors (most common)
-        addSynonyms("regexextractor", "regex extractor", "regular expression extractor", "regex", "regexp");
-        addSynonyms("xpathextractor", "xpath extractor", "xml extractor", "xpath");
-        addSynonyms("jsonpathextractor", "json extractor", "jsonpath extractor", "json path extractor", "jsonpath");
-        addSynonyms("boundaryextractor", "boundary extractor", "text extractor", "boundary");
+        addSynonyms("regexextractor", "regex extractor", "regular expression extractor", "regex", "regexp",
+                "pattern extractor", "text extractor");
+        addSynonyms("xpathextractor", "xpath extractor", "xml extractor", "xpath", "xml path extractor", "xml parser");
+        addSynonyms("jsonpathextractor", "json extractor", "jsonpath extractor", "json path extractor", "jsonpath",
+                "json parser", "json data extractor");
+        addSynonyms("boundaryextractor", "boundary extractor", "text extractor", "boundary", "string extractor",
+                "substring extractor");
 
         // Listeners (most common)
-        addSynonyms("viewresultstree", "view results tree", "results tree", "view results", "results viewer");
-        addSynonyms("aggregatereport", "aggregate report", "summary report", "statistics", "stats");
+        addSynonyms("viewresultstree", "listener", "view results tree", "results tree", "view results",
+                "results viewer", "response viewer", "debug viewer", "request response viewer");
+        addSynonyms("aggregatereport", "aggregate report", "summary report", "statistics", "stats",
+                "performance report", "metrics report");
 
         // JSR223 Elements
         addSynonyms("jsr223sampler", "jsr223 sampler", "jsr223", "jsr 223", "jsr 223 sampler", "javascript sampler",
-                "groovy sampler", "java sampler");
+                "groovy sampler", "java sampler", "script sampler", "custom script", "code sampler");
         addSynonyms("jsr223preprocessor", "jsr223 preprocessor", "jsr223 pre processor", "jsr223 pre",
-                "jsr 223 pre processor", "javascript preprocessor", "groovy preprocessor");
+                "jsr 223 pre processor", "javascript preprocessor", "groovy preprocessor", "script preprocessor",
+                "pre-request script");
         addSynonyms("jsr223postprocessor", "jsr223 postprocessor", "jsr223 post processor", "jsr223 post",
-                "jsr 223 post processor", "javascript postprocessor", "groovy postprocessor");
+                "jsr 223 post processor", "javascript postprocessor", "groovy postprocessor", "script postprocessor",
+                "post-request script");
+        addSynonyms("jsr223assertion", "jsr223 assertion", "script assertion", "code assertion", "custom assertion",
+                "programmatic assertion", "groovy assertion");
+        addSynonyms("jsr223listener", "jsr223 listener", "script listener", "custom listener", "programmatic listener",
+                "groovy listener");
+        addSynonyms("jsr223timer", "jsr223 timer", "script timer", "custom timer", "programmatic timer",
+                "groovy timer");
 
         // Additional elements from ELEMENT_CLASS_MAP
-        addSynonyms("ftprequest", "ftp request", "ftp sampler");
-        addSynonyms("httprequest", "http request", "web request", "http", "request");
-        addSynonyms("jdbcrequest", "jdbc request", "database request", "sql request");
-        addSynonyms("javarequest", "java request", "java sampler");
-        addSynonyms("ldaprequest", "ldap request", "ldap sampler");
-        addSynonyms("ldapeextendedrequest", "ldap extended request", "ldap ext sampler");
-        addSynonyms("accesslogsampler", "access log sampler", "log sampler");
-        addSynonyms("beanshellsampler", "beanshell sampler", "bsh sampler");
-        addSynonyms("tcpsampler", "tcp sampler", "tcp request");
-        addSynonyms("jmspublisher", "jms publisher", "jms publish");
-        addSynonyms("jmssubscriber", "jms subscriber", "jms subscribe");
-        addSynonyms("jmspointtopoint", "jms point to point", "jms p2p");
-        addSynonyms("junitrequest", "junit request", "junit sampler");
-        addSynonyms("mailreadersampler", "mail reader sampler", "email sampler");
-        addSynonyms("flowcontrolaction", "flow control action", "test action");
-        addSynonyms("smtpsampler", "smtp sampler", "smtp request");
-        addSynonyms("osprocesssampler", "os process sampler", "system sampler");
-        addSynonyms("mongodbscript", "mongodb script", "mongo script");
-        addSynonyms("boltrequest", "bolt request", "bolt sampler");
-        addSynonyms("simplecontroller", "simple controller", "generic controller");
-        addSynonyms("onceonlycontroller", "once only controller", "once controller");
-        addSynonyms("interleavecontroller", "interleave controller", "interleave");
-        addSynonyms("randomcontroller", "random controller", "random");
-        addSynonyms("randomordercontroller", "random order controller", "random order");
-        addSynonyms("throughputcontroller", "throughput controller", "throughput");
-        addSynonyms("switchcontroller", "switch controller", "switch");
-        addSynonyms("foreachcontroller", "foreach controller", "for each controller");
-        addSynonyms("modulecontroller", "module controller", "module");
-        addSynonyms("includecontroller", "include controller", "include");
-        addSynonyms("recordingcontroller", "recording controller", "recording");
-        addSynonyms("criticalsectioncontroller", "critical section controller", "critical section");
-        addSynonyms("sampleresultsaveconfiguration", "sample result save configuration", "save configuration");
-        addSynonyms("graphresults", "graph results", "graph visualizer");
-        addSynonyms("assertionresults", "assertion results", "assertion visualizer");
-        addSynonyms("viewresultsintable", "view results in table", "table visualizer");
-        addSynonyms("simpledatawriter", "simple data writer", "data writer");
-        addSynonyms("aggregategraph", "aggregate graph", "stat graph visualizer");
-        addSynonyms("responsetimegraph", "response time graph", "response time visualizer");
-        addSynonyms("mailervisualizer", "mailer visualizer", "mailer");
-        addSynonyms("beanshelllistener", "beanshell listener", "bsh listener");
-        addSynonyms("summaryreport", "summary report", "summary");
-        addSynonyms("saveresponsestoafile", "save responses to a file", "result saver");
-        addSynonyms("jsr223listener", "jsr223 listener", "jsr223");
-        addSynonyms("generatesummaryresults", "generate summary results", "summariser");
-        addSynonyms("comparisonassertionvisualizer", "comparison assertion visualizer", "comparison visualizer");
-        addSynonyms("backendlistener", "backend listener", "backend");
-        addSynonyms("csvdatasetconfig", "csv data set config", "csv config");
-        addSynonyms("ftprequestdefaults", "ftp request defaults", "ftp defaults");
-        addSynonyms("dnscachemanager", "dns cache manager", "dns manager");
-        addSynonyms("httpauthorizationmanager", "http authorization manager", "auth manager");
+        addSynonyms("ftprequest", "ftp request", "ftp sampler", "ftp", "ftp client");
+        addSynonyms("httprequest", "http request", "web request", "http", "request", "web test", "http test");
+        addSynonyms("jdbcrequest", "jdbc request", "database request", "sql request", "db request", "database query",
+                "sql query");
+        addSynonyms("javarequest", "java request", "java sampler", "java test", "java method call");
+        addSynonyms("ldaprequest", "ldap request", "ldap sampler", "directory request", "ldap query");
+        addSynonyms("ldapeextendedrequest", "ldap extended request", "ldap ext sampler", "extended directory request");
+        addSynonyms("accesslogsampler", "access log sampler", "log sampler", "log replay");
+        addSynonyms("beanshellsampler", "beanshell sampler", "bsh sampler", "beanshell script", "bsh script");
+        addSynonyms("tcpsampler", "tcp sampler", "tcp request", "socket request", "network request");
+        addSynonyms("jmspublisher", "jms publisher", "jms publish", "message publisher", "queue publisher");
+        addSynonyms("jmssubscriber", "jms subscriber", "jms subscribe", "message subscriber", "queue subscriber");
+        addSynonyms("jmspointtopoint", "jms point to point", "jms p2p", "point to point messaging", "direct messaging");
+        addSynonyms("junitrequest", "junit request", "junit sampler", "junit test", "java unit test");
+        addSynonyms("mailreadersampler", "mail reader sampler", "email sampler", "pop3 sampler", "imap sampler",
+                "email reader");
+        addSynonyms("flowcontrolaction", "flow control action", "test action", "flow action", "test flow control");
+        addSynonyms("smtpsampler", "smtp sampler", "smtp request", "email sender", "mail sender");
+        addSynonyms("osprocesssampler", "os process sampler", "system sampler", "shell command", "command line",
+                "process executor");
+        addSynonyms("mongodbscript", "mongodb script", "mongo script", "mongodb query", "nosql query");
+        addSynonyms("boltrequest", "bolt request", "bolt sampler", "neo4j request");
+        addSynonyms("graphqlhttprequest", "graphql http request", "graphql request", "graphql sampler", "graphql api");
+        addSynonyms("debugsampler", "debug sampler", "debug request", "debug info", "variable viewer");
+        addSynonyms("ajpsampler", "ajp sampler", "ajp request", "apache jserv protocol", "tomcat connector");
+
+        // Controllers
+        addSynonyms("simplecontroller", "simple controller", "generic controller", "container", "group controller");
+        addSynonyms("onceonlycontroller", "once only controller", "once controller", "one time controller",
+                "single execution");
+        addSynonyms("interleavecontroller", "interleave controller", "interleave", "alternate controller",
+                "round robin controller");
+        addSynonyms("randomcontroller", "random controller", "random", "random selection controller");
+        addSynonyms("randomordercontroller", "random order controller", "random order", "shuffled order controller");
+        addSynonyms("throughputcontroller", "throughput controller", "throughput", "percentage controller",
+                "execution percentage");
+        addSynonyms("switchcontroller", "switch controller", "switch", "case controller", "switch case");
+        addSynonyms("foreachcontroller", "foreach controller", "for each controller", "iterator controller",
+                "loop over items");
+        addSynonyms("modulecontroller", "module controller", "module", "test fragment controller", "reusable section");
+        addSynonyms("includecontroller", "include controller", "include", "external test plan", "test plan inclusion");
+        addSynonyms("recordingcontroller", "recording controller", "recording", "proxy recorder", "http recorder");
+        addSynonyms("criticalsectioncontroller", "critical section controller", "critical section", "mutex controller",
+                "synchronized section");
+
+        // Listeners and Visualizers
+        addSynonyms("sampleresultsaveconfiguration", "sample result save configuration", "save configuration",
+                "result saving options");
+        addSynonyms("graphresults", "graph results", "graph visualizer", "results graph", "performance graph");
+        addSynonyms("assertionresults", "assertion results", "assertion visualizer", "assertion failures",
+                "validation results");
+        addSynonyms("viewresultsintable", "view results in table", "table visualizer", "results table",
+                "tabular results");
+        addSynonyms("simpledatawriter", "simple data writer", "data writer", "results writer", "writer");
+        addSynonyms("aggregategraph", "aggregate graph", "stat graph visualizer", "statistics graph", "metrics graph");
+        addSynonyms("responsetimegraph", "response time graph", "response time visualizer", "latency graph",
+                "timing graph");
+        addSynonyms("mailervisualizer", "mailer visualizer", "mailer", "email notifier", "mail alert");
+        addSynonyms("beanshelllistener", "beanshell listener", "bsh listener", "beanshell results processor");
+        addSynonyms("summaryreport", "summary report", "summary", "test summary", "results summary");
+        addSynonyms("saveresponsestoafile", "save responses", "result saver", "response saver");
+        addSynonyms("generatesummaryresults", "generate summary results", "summariser", "console summarizer",
+                "log summarizer");
+        addSynonyms("comparisonassertionvisualizer", "comparison assertion visualizer", "comparison visualizer",
+                "diff visualizer");
+        addSynonyms("backendlistener", "backend listener", "backend", "metrics sender", "influxdb listener",
+                "grafana exporter");
+
+        // Config Elements
+        addSynonyms("csvdatasetconfig", "csv data set config", "csv config", "test data config");
+        addSynonyms("ftprequestdefaults", "ftp request defaults", "ftp defaults", "ftp config", "ftp settings");
+        addSynonyms("dnscachemanager", "dns cache manager", "dns manager", "hostname resolver", "dns resolver");
+        addSynonyms("httpauthorizationmanager", "http authorization manager", "auth manager", "authentication manager",
+                "http auth");
+        addSynonyms("cookiemanager", "cookie manager", "cookies", "http cookies", "browser cookies", "session cookies");
+        addSynonyms("cachemanager", "cache manager", "http cache", "browser cache", "web cache");
+        addSynonyms("httpdefaults", "http defaults", "http default config", "default http settings", "http config");
+        addSynonyms("boltconnection", "bolt connection", "neo4j connection", "graph db connection");
+        addSynonyms("counterconfig", "counter config", "counter", "sequence generator", "incrementing variable");
+        addSynonyms("ftpconfig", "ftp config", "ftp configuration", "ftp connection settings");
+        addSynonyms("authmanager", "auth manager", "authentication manager", "credentials manager", "login manager");
+        addSynonyms("jdbcdatasource", "jdbc datasource", "database connection", "db connection", "sql connection");
+        addSynonyms("javaconfig", "java config", "java configuration", "java sampler config");
+        addSynonyms("keystoreconfig", "keystore config", "ssl config", "certificate config", "tls config");
+        addSynonyms("ldapextconfig", "ldap ext config", "ldap extended config", "extended directory config");
+        addSynonyms("ldapconfig", "ldap config", "directory config", "ldap connection config");
+        addSynonyms("loginconfig", "login config", "login configuration", "authentication config");
+        addSynonyms("randomvariable", "random variable", "random value", "random string", "random number");
+        addSynonyms("simpleconfig", "simple config", "basic config", "generic config");
+        addSynonyms("tcpconfig", "tcp config", "tcp configuration", "socket config", "network config");
+        addSynonyms("arguments", "arguments", "variables", "user defined variables", "parameters", "test variables");
+
+        // Assertions
+        addSynonyms("jmespathassert", "jmespath assertion", "jmespath validator", "json jmespath check");
+        addSynonyms("md5assertion", "md5 assertion", "md5 hex assertion", "hash assertion", "checksum assertion");
+        addSynonyms("smimeassertion", "smime assertion", "secure email assertion", "email signature assertion");
+        addSynonyms("xmlassertion", "xml assertion", "xml validation", "xml well-formed check");
+        addSynonyms("xmlschemaassertion", "xml schema assertion", "xsd assertion", "xml schema validation");
+        addSynonyms("beanshellassertion", "beanshell assertion", "bsh assertion", "script assertion");
+        addSynonyms("compareassert", "compare assertion", "comparison assertion", "response comparison");
+        addSynonyms("htmlassertion", "html assertion", "html validator", "html check", "web page validator");
+        addSynonyms("xpath2assertion", "xpath2 assertion", "xpath 2.0 assertion", "xml xpath2 validator");
+
+        // Pre-processors
+        addSynonyms("userparameters", "user parameters", "user vars", "user variables", "parameter input");
+        addSynonyms("anchormodifier", "anchor modifier", "html link modifier", "url anchor processor");
+        addSynonyms("urlrewritingmodifier", "url rewriting modifier", "url rewrite", "url processor");
+        addSynonyms("jdbcpreprocessor", "jdbc preprocessor", "sql preprocessor", "database pre-request");
+        addSynonyms("regexuserparameters", "regex user parameters", "regex variables", "pattern variables");
+        addSynonyms("sampletimeout", "sample timeout", "request timeout", "execution timeout");
+        addSynonyms("beanshellpreprocessor", "beanshell preprocessor", "bsh preprocessor", "script pre-request");
+
+        // Post-processors
+        addSynonyms("htmlextractor", "html extractor", "html parser", "dom extractor", "css extractor");
+        addSynonyms("jmespathextractor", "jmespath extractor", "jmespath parser", "json jmespath extractor");
+        addSynonyms("debugpostprocessor", "debug postprocessor", "debug post processor", "debug extractor");
+        addSynonyms("jdbcpostprocessor", "jdbc postprocessor", "sql postprocessor", "database post-request");
+        addSynonyms("resultaction", "result action", "response action", "conditional action");
+        addSynonyms("xpath2extractor", "xpath2 extractor", "xpath 2.0 extractor", "xml xpath2 parser");
+        addSynonyms("beanshellpostprocessor", "beanshell postprocessor", "bsh postprocessor", "script post-request");
     }
 
     /**
@@ -299,8 +399,6 @@ public class JMeterElementRequestHandler {
                 continue;
             }
 
-         
-
             // Try to extract just the element type from the instruction
             String elementType = extractElementType(instruction);
             if (elementType != null) {
@@ -374,9 +472,12 @@ public class JMeterElementRequestHandler {
         }
 
         // Extract the element type and name
+        String actionVerb = matcher.group(1);
         String requestedElementType = matcher.group(2).trim();
         String elementName = matcher.group(3);
 
+        log.info("Regex match - Action verb: '{}', Element type: '{}', Element name: '{}'",
+                actionVerb, requestedElementType, elementName);
         log.info("Extracted element type: {} and name: {}", requestedElementType, elementName);
 
         // Map the requested element type to a supported type
@@ -452,7 +553,7 @@ public class JMeterElementRequestHandler {
      * @return A response message
      */
     private static String addElementAfterTestPlanCheck(String elementType, String elementName) {
-        log.info("Adding element of type: {} with name: {}", elementType, elementName); 
+        log.info("Adding element of type: {} with name: {}", elementType, elementName);
 
         // Get the currently selected node before adding the element
         GuiPackage guiPackage = GuiPackage.getInstance();
@@ -501,8 +602,6 @@ public class JMeterElementRequestHandler {
         }
     }
 
-     
-
     /**
      * Processes a user message to determine if it's requesting to optimize the test
      * plan.
@@ -514,8 +613,6 @@ public class JMeterElementRequestHandler {
     public static String processOptimizeTestPlanRequest(String userMessage) {
         return OptimizeRequestHandler.processOptimizeTestPlanRequest(userMessage);
     }
-
-     
 
     /**
      * Extracts the element type from a given instruction.
@@ -532,6 +629,11 @@ public class JMeterElementRequestHandler {
         // First, check for direct matches with supported element types
         for (String word : words) {
             String normalized = word.toLowerCase().trim();
+            // Skip single-letter words as they're likely articles (a, an) or other
+            // non-element words
+            if (normalized.length() <= 1) {
+                continue;
+            }
             if (JMeterElementManager.isElementTypeSupported(normalized)) {
                 log.info("Found direct match for element type: {}", normalized);
                 return normalized;
@@ -541,6 +643,11 @@ public class JMeterElementRequestHandler {
         // Next, check for matches with element synonyms
         for (String word : words) {
             String normalized = word.toLowerCase().trim();
+            // Skip single-letter words as they're likely articles (a, an) or other
+            // non-element words
+            if (normalized.length() <= 1) {
+                continue;
+            }
             String mappedType = mapToSupportedElementType(normalized);
             if (mappedType != null) {
                 log.info("Found mapped element type: {} for word: {}", mappedType, normalized);
@@ -728,6 +835,14 @@ public class JMeterElementRequestHandler {
 
         // Normalize the requested type
         String normalized = requestedType.toLowerCase().trim();
+
+        // Skip single-letter words as they're likely articles (a, an) or other
+        // non-element words
+        if (normalized.length() <= 1) {
+            log.info("Skipping single-letter word: '{}' as it's not a valid element type", normalized);
+            return null;
+        }
+
         log.info("Mapping requested type: '{}' (normalized: '{}')", requestedType, normalized);
 
         // First, check if the normalized type is directly supported
@@ -739,7 +854,26 @@ public class JMeterElementRequestHandler {
             return directMatch;
         }
 
-        // Check against synonyms
+        // Special case for common generic terms
+        if (normalized.equals("listener")) {
+            log.info("Special case: generic term 'listener' detected, mapping to viewresultstree");
+            return "viewresultstree";
+        } else if (normalized.equals("controller")) {
+            log.info("Special case: generic term 'controller' detected, mapping to simplecontroller");
+            return "simplecontroller";
+        } else if (normalized.equals("sampler")) {
+            log.info("Special case: generic term 'sampler' detected, mapping to httpsampler");
+            return "httpsampler";
+        } else if (normalized.equals("timer")) {
+            log.info("Special case: generic term 'timer' detected, mapping to constanttimer");
+            return "constanttimer";
+        }
+
+        // Check against synonyms with a scoring system
+        String bestMatch = null;
+        double bestScore = 0.0;
+
+        // First pass: Look for exact matches (highest priority)
         for (Map.Entry<String, List<String>> entry : ELEMENT_SYNONYMS.entrySet()) {
             String elementType = entry.getKey();
             List<String> synonyms = entry.getValue();
@@ -747,21 +881,87 @@ public class JMeterElementRequestHandler {
             log.info("Checking element type '{}' with synonyms: {}", elementType, synonyms);
 
             for (String synonym : synonyms) {
-                // Check for exact match
+                // Check for exact match (highest priority)
                 if (normalized.equals(synonym)) {
                     log.info("Exact synonym match found: '{}' -> '{}'", synonym, elementType);
-                    return elementType;
-                }
-
-                // Check if the normalized type contains the synonym
-                if (normalized.contains(synonym) || synonym.contains(normalized)) {
-                    log.info("Partial synonym match found: '{}' contains or is contained in '{}'", normalized, synonym);
-                    return elementType;
+                    return elementType; // Return immediately for exact matches
                 }
             }
         }
 
+        // Second pass: Look for word matches (medium priority)
+        for (Map.Entry<String, List<String>> entry : ELEMENT_SYNONYMS.entrySet()) {
+            String elementType = entry.getKey();
+            List<String> synonyms = entry.getValue();
+
+            for (String synonym : synonyms) {
+                // Check if the normalized type is a complete word in the synonym
+                String[] synonymWords = synonym.split("\\s+");
+                for (String word : synonymWords) {
+                    if (normalized.equals(word)) {
+                        double score = 0.8; // Good score for word match
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestMatch = elementType;
+                            log.info("Word match found: '{}' is a word in '{}', score: {}", normalized, synonym, score);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Third pass: Look for partial matches (lowest priority)
+        if (bestMatch == null) {
+            for (Map.Entry<String, List<String>> entry : ELEMENT_SYNONYMS.entrySet()) {
+                String elementType = entry.getKey();
+                List<String> synonyms = entry.getValue();
+
+                for (String synonym : synonyms) {
+                    // Calculate a score based on how specific the match is
+                    double score = 0.0;
+
+                    // If the normalized input contains the entire synonym
+                    if (normalized.contains(synonym)) {
+                        // Score based on how much of the input the synonym covers
+                        score = (double) synonym.length() / normalized.length() * 0.7;
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestMatch = elementType;
+                            log.info("Partial match found: '{}' contains '{}', score: {}", normalized, synonym, score);
+                        }
+                    }
+                    // If the synonym contains the normalized input (be careful with this)
+                    else if (synonym.contains(normalized)) {
+                        // Score based on how specific the input is compared to the synonym
+                        // Lower score for generic terms contained in many synonyms
+                        score = (double) normalized.length() / synonym.length() * 0.5;
+
+                        // Penalize very generic terms
+                        if (normalized.equals("listener") || normalized.equals("controller") ||
+                                normalized.equals("sampler") || normalized.equals("timer") ||
+                                normalized.equals("assertion") || normalized.equals("extractor")) {
+                            score *= 0.5; // Reduce score for generic terms
+                        }
+
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestMatch = elementType;
+                            log.info("Partial match found: '{}' is contained in '{}', score: {}", normalized, synonym,
+                                    score);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Return the best match if the score is above a threshold
+        if (bestMatch != null && bestScore > 0.3) {
+            log.info("Best match for '{}' is '{}' with score {}", normalized, bestMatch, bestScore);
+            return bestMatch;
+        }
+
         // No mapping found
+        log.info("No suitable mapping found for '{}'", normalized);
         return null;
     }
 
@@ -801,8 +1001,6 @@ public class JMeterElementRequestHandler {
 
         return elementTypeMap;
     }
-
-    
 
     /**
      * Checks if a node has a parent of the specified type.
