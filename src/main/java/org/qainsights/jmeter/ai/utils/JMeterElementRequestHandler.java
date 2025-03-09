@@ -253,10 +253,9 @@ public class JMeterElementRequestHandler {
     }
 
     /**
-     * Processes a user message to determine if it's requesting to add a JMeter
-     * element.
+     * Processes a user message to determine if it's an element request.
      * 
-     * @param message The user message to process
+     * @param message The user message
      * @return A response message if the request was handled, null otherwise
      */
     public static String processElementRequest(String message) {
@@ -264,24 +263,32 @@ public class JMeterElementRequestHandler {
             return null;
         }
 
+        log.info("JMeterElementRequestHandler processing message: '{}'", message);
+
         // Check if the message contains multiple instructions
         List<String> instructions = splitIntoInstructions(message);
 
         if (instructions.size() > 1) {
+            log.info("Message contains multiple instructions: {}", instructions.size());
             return processMultipleInstructions(instructions);
         }
 
         // Process single instruction
         String response = processAddElementRequest(message);
         if (response != null) {
+            log.info("Message handled as add element request");
             return response;
         }
 
-        response = processOptimizeTestPlanRequest(message);
-        if (response != null) {
-            return response;
-        }
+        // log.info("Checking if message is an optimize request: '{}'", message);
+        // response = processOptimizeTestPlanRequest(message);
+        // if (response != null) {
+        //     log.info("Message handled as optimize request, response: '{}'",
+        //             response.length() > 50 ? response.substring(0, 50) + "..." : response);
+        //     return response;
+        // }
 
+        log.info("Message not recognized as an element request: '{}'", message);
         // If the message doesn't match any of the patterns, return null
         // This will cause the message to be sent to the AI for processing
         return null;
