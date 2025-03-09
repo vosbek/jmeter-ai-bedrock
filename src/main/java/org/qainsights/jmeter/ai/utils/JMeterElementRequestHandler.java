@@ -399,12 +399,12 @@ public class JMeterElementRequestHandler {
             }
 
             // Process optimize test plan request
-            response = processOptimizeTestPlanRequest(instruction);
-            if (response != null) {
-                log.info("Processed optimize test plan request: {}", response);
-                responses.add(response);
-                continue;
-            }
+            // response = processOptimizeTestPlanRequest(instruction);
+            // if (response != null) {
+            //     log.info("Processed optimize test plan request: {}", response);
+            //     responses.add(response);
+            //     continue;
+            // }
 
             // Try to extract just the element type from the instruction
             String elementType = extractElementType(instruction);
