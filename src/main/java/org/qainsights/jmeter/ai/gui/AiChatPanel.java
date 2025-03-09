@@ -14,7 +14,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.border.*;
 import javax.swing.text.*;
 import javax.swing.tree.*;
 import java.awt.*;
@@ -22,11 +21,9 @@ import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -46,6 +43,7 @@ public class AiChatPanel extends JPanel {
     private static final Pattern CODE_BLOCK_PATTERN = Pattern.compile("```([\\w-]*)\\s*([\\s\\S]*?)```");
 
     // Pattern to match JMeter element suggestions in AI responses
+    @SuppressWarnings("unused")
     private static final Pattern ELEMENT_SUGGESTION_PATTERN = Pattern.compile(
         "(?i)(?:add|create|use|include)\\s+(?:a|an)?\\s+([a-z\\s-]+?)(?:\\s+(?:called|named|with name|with the name)?\\s+[\"']?([^\"']+?)[\"']?)?(?:\\s*$|\\s+(?:to|in|for)\\b)"
     );
