@@ -131,3 +131,4 @@ replay_pid*
 /nbdist/
 /.nb-gradle/
 .vscode/settings.json
+.DS_Store

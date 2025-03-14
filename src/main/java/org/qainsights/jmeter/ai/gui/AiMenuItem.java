@@ -59,7 +59,7 @@ public class AiMenuItem extends JMenuItem implements ActionListener{
 
     private JButton getToolbarButton() {
         JButton button = new JButton(getButtonIcon(22));
-        button.setToolTipText("Toggle AI Chat Panel");
+        button.setToolTipText("Toggle FeatherWand Panel");
         button.addActionListener(this);
         button.setActionCommand("toggle_ai_panel");
         return button;

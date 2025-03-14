@@ -33,15 +33,15 @@ The Feather Wand plugin can be configured through JMeter properties. Copy the `j
 
 ### 🔧 Available Configuration Options
 
-| Property | Description | Default Value |
-|----------|-------------|---------------|
-| `anthropic.api.key` | Your Claude API key | Required |
-| `claude.default.model` | Default Claude model to use | claude-3-sonnet-20240229 |
-| `claude.temperature` | Temperature setting (0.0-1.0) | 0.7 |
-| `claude.max.tokens` | Maximum tokens for AI responses | 1024 |
-| `claude.max.history.size` | Maximum conversation history size | 10 |
-| `claude.system.prompt` | System prompt that guides Claude's responses | See sample properties file |
-| `anthropic.log.level` | Logging level for Anthropic API requests ("info" or "debug") | Empty (disabled) |
+| Property                  | Description                                                  | Default Value              |
+| ------------------------- | ------------------------------------------------------------ | -------------------------- |
+| `anthropic.api.key`       | Your Claude API key                                          | Required                   |
+| `claude.default.model`    | Default Claude model to use                                  | claude-3-sonnet-20240229   |
+| `claude.temperature`      | Temperature setting (0.0-1.0)                                | 0.7                        |
+| `claude.max.tokens`       | Maximum tokens for AI responses                              | 1024                       |
+| `claude.max.history.size` | Maximum conversation history size                            | 10                         |
+| `claude.system.prompt`    | System prompt that guides Claude's responses                 | See sample properties file |
+| `anthropic.log.level`     | Logging level for Anthropic API requests ("info" or "debug") | Empty (disabled)           |
 
 ### 💬 Customizing the System Prompt
 
@@ -58,6 +58,25 @@ Use the `@this` command in your message to get detailed information about the cu
 - "What are the best practices for @this?"
 
 Feather Wand will analyze the selected element and provide tailored information and advice.
+
+### 🔧 @optimize Command
+
+Use the `@optimize` command (or simply type "optimize") to get optimization recommendations for the currently selected element in your test plan. This command will:
+
+1. Analyze the selected element's configuration
+2. Identify potential performance bottlenecks
+3. Suggest specific, actionable improvements
+4. Provide best practices for that element type
+
+For example, if you have an HTTP Request sampler selected, the optimization recommendations might include:
+
+- Connection and timeout settings adjustments
+- Proper header management
+- Efficient parameter handling
+- Encoding settings optimization
+- Redirect handling improvements
+
+Simply select an element in your test plan and type `@optimize` or `optimize` in the chat to receive tailored optimization recommendations.
 
 ## 🗝️ How to get an Anthropic API key?
 
