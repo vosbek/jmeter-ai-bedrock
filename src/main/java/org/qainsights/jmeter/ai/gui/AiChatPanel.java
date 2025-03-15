@@ -1,19 +1,5 @@
 package org.qainsights.jmeter.ai.gui;
 
-import org.qainsights.jmeter.ai.service.ClaudeService;
-import org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler;
-import org.qainsights.jmeter.ai.utils.JMeterElementManager;
-import org.qainsights.jmeter.ai.utils.Models;
-import org.qainsights.jmeter.ai.optimizer.OptimizeRequestHandler;
-
-import org.apache.jmeter.gui.GuiPackage;
-import org.apache.jmeter.gui.tree.JMeterTreeNode;
-import org.apache.jmeter.testelement.TestElement;
-import org.apache.jmeter.testelement.property.JMeterProperty;
-import org.apache.jmeter.testelement.property.PropertyIterator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import javax.swing.*;
 import javax.swing.text.*;
 import javax.swing.tree.*;
@@ -21,13 +7,25 @@ import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.jmeter.gui.GuiPackage;
+import org.apache.jmeter.gui.tree.JMeterTreeNode;
+import org.apache.jmeter.testelement.TestElement;
+import org.apache.jmeter.testelement.property.JMeterProperty;
+import org.apache.jmeter.testelement.property.PropertyIterator;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.qainsights.jmeter.ai.service.ClaudeService;
+import org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler;
+import org.qainsights.jmeter.ai.utils.JMeterElementManager;
+import org.qainsights.jmeter.ai.utils.Models;
+import org.qainsights.jmeter.ai.optimizer.OptimizeRequestHandler;
 
 import com.anthropic.models.ModelInfo;
 
@@ -38,6 +36,8 @@ public class AiChatPanel extends JPanel {
     private List<String> conversationHistory;
     private ClaudeService claudeService;
     private JComboBox<ModelInfo> modelSelector;
+    private TreeNavigationButtons treeNavigationButtons;
+    
     private static final Logger log = LoggerFactory.getLogger(AiChatPanel.class);
 
     // Pattern to match code blocks in markdown (```language code ```)
@@ -52,6 +52,7 @@ public class AiChatPanel extends JPanel {
     private Map<String, String> codeSnippets = new HashMap<>();
 
     public AiChatPanel() {
+        treeNavigationButtons = new TreeNavigationButtons();
         claudeService = new ClaudeService();
         setLayout(new BorderLayout());
         setPreferredSize(new Dimension(500, 600)); // Increased width for better readability
@@ -197,6 +198,20 @@ public class AiChatPanel extends JPanel {
         modelPanel.add(modelSelector);
         bottomPanel.add(modelPanel, BorderLayout.NORTH);
 
+        // Add navigation buttons
+        treeNavigationButtons.setUpButtonActionListener();
+        treeNavigationButtons.setDownButtonActionListener();
+        
+        // Create a panel for navigation buttons
+        JPanel navigationPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        navigationPanel.add(treeNavigationButtons.getUpButton());
+        navigationPanel.add(treeNavigationButtons.getDownButton());
+        
+        // Add example buttons for JMeter elements
+        // createExampleButtons(navigationPanel);
+        
+        bottomPanel.add(navigationPanel, BorderLayout.CENTER);
+
         // Create input panel with text field and send button
         JPanel inputPanel = new JPanel(new BorderLayout(5, 0));
 
@@ -235,7 +250,7 @@ public class AiChatPanel extends JPanel {
 
         inputPanel.add(messageScrollPane, BorderLayout.CENTER);
         inputPanel.add(sendButton, BorderLayout.EAST);
-        bottomPanel.add(inputPanel, BorderLayout.CENTER);
+        bottomPanel.add(inputPanel, BorderLayout.SOUTH);
 
         add(bottomPanel, BorderLayout.SOUTH);
 
@@ -383,7 +398,8 @@ public class AiChatPanel extends JPanel {
 
         // Replace code blocks with placeholders
         while (matcher.find()) {
-            String language = matcher.group(1).trim();
+            // Language could be used for syntax highlighting in the future
+            matcher.group(1).trim(); // Capturing language but not using it yet
             String code = matcher.group(2);
 
             // Generate a placeholder
@@ -439,7 +455,7 @@ public class AiChatPanel extends JPanel {
                         copyButton.setText("Copied!");
 
                         // Reset the button text after a delay
-                        Timer timer = new Timer(1500, event -> copyButton.setText("Copy"));
+                        javax.swing.Timer timer = new javax.swing.Timer(1500, event -> copyButton.setText("Copy"));
                         timer.setRepeats(false);
                         timer.start();
                     });
@@ -697,9 +713,6 @@ public class AiChatPanel extends JPanel {
         return addButton;
     }
 
-    /**
-     * Selects the last added element in the test plan
-     */
     private void selectLastAddedElement() {
         log.info("Selecting last added element");
 
@@ -731,97 +744,27 @@ public class AiChatPanel extends JPanel {
     }
 
     /**
-     * Suggests related elements after adding an element
+     * Suggests related JMeter elements based on the current context.
+     * This method is called from getContextAwareElementSuggestions().
+     * @return A 2D array of element suggestions with display name and type
      */
-    private void suggestRelatedElements() {
-        // Get the currently selected node from JMeter
-        JMeterTreeNode selectedNode = GuiPackage.getInstance().getTreeListener().getCurrentNode();
-
-        if (selectedNode == null) {
-            log.warn("No node selected in test plan, cannot suggest related elements");
-            return;
+    private String[][] suggestRelatedElements() {
+        GuiPackage guiPackage = GuiPackage.getInstance();
+        if (guiPackage == null) {
+            return getRelatedElements("default");
         }
-
-        // Get the type of the selected node
-        TestElement testElement = selectedNode.getTestElement();
-        String nodeType = testElement.getClass().getSimpleName();
-
-        log.info("Suggesting related elements for node type: {}", nodeType);
-
-        // Get related elements based on the node type
-        String[][] relatedElements = getRelatedElements(nodeType);
-
-        // If no related elements were found, return
-        if (relatedElements.length == 0) {
-            log.info("No related elements found for node type: {}", nodeType);
-            return;
+        
+        JMeterTreeNode currentNode = guiPackage.getTreeListener().getCurrentNode();
+        if (currentNode == null) {
+            return getRelatedElements("default");
         }
-
-        // Create a panel for the suggestion message and buttons
-        JPanel suggestionPanel = new JPanel(new BorderLayout());
-        suggestionPanel.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
-
-        // Add a message about the suggestions
-        JLabel suggestionLabel = new JLabel("Here are some elements you might want to add next:");
-        suggestionLabel
-                .setFont(new Font(suggestionLabel.getFont().getName(), Font.BOLD, suggestionLabel.getFont().getSize()));
-        suggestionPanel.add(suggestionLabel, BorderLayout.NORTH);
-
-        // Create a grid panel for the buttons (2x2 grid)
-        JPanel gridPanel = new JPanel(new GridLayout(0, 2, 5, 5));
-        gridPanel.setBorder(BorderFactory.createEmptyBorder(5, 0, 0, 0));
-
-        // Add buttons for each related element (up to 4)
-        int buttonCount = 0;
-        for (String[] element : relatedElements) {
-            if (buttonCount >= 4)
-                break; // Limit to 4 buttons
-
-            String displayName = element[0];
-            String normalizedType = element[1];
-
-            // Create a button for the element
-            JButton addButton = createElementButton(displayName, normalizedType, null);
-
-            // Add the button to the panel
-            gridPanel.add(addButton);
-            buttonCount++;
-        }
-
-        // Add the grid panel to the main panel
-        suggestionPanel.add(gridPanel, BorderLayout.CENTER);
-
-        try {
-            StyledDocument doc = chatArea.getStyledDocument();
-
-            // Insert a placeholder for the component at the end of the document
-            int pos = doc.getLength();
-            doc.insertString(pos, "\n", new SimpleAttributeSet());
-            pos = doc.getLength();
-            doc.insertString(pos, " ", new SimpleAttributeSet());
-
-            // Create a style for the component
-            SimpleAttributeSet componentStyle = new SimpleAttributeSet();
-            StyleConstants.setComponent(componentStyle, suggestionPanel);
-
-            // Apply the style to the placeholder
-            doc.setCharacterAttributes(pos, 1, componentStyle, false);
-
-            // Scroll to the bottom
-            chatArea.setCaretPosition(doc.getLength());
-
-            log.info("Added related element suggestions");
-        } catch (BadLocationException e) {
-            log.error("Error adding suggestion buttons", e);
-        }
+        
+        TestElement testElement = currentNode.getTestElement();
+        String className = testElement.getClass().getSimpleName().toLowerCase();
+        
+        return getRelatedElements(className);
     }
 
-    /**
-     * Gets related elements based on the added element type
-     * 
-     * @param addedElementType The type of element that was added
-     * @return Array of related elements [display name, normalized type]
-     */
     private String[][] getRelatedElements(String addedElementType) {
         switch (addedElementType.toLowerCase()) {
             case "threadgroup":
@@ -846,7 +789,7 @@ public class AiChatPanel extends JPanel {
             case "transactioncontroller":
             case "runtimecontroller":
                 return new String[][] {
-                        { "HTTP Sampler", "httpsampler" },
+                        { "HTTP Request", "httprequest" },
                         { "JSR223 Sampler", "jsr223sampler" },
                         { "Loop Controller", "loopcontroller" },
                         { "If Controller", "ifcontroller" }
@@ -869,7 +812,7 @@ public class AiChatPanel extends JPanel {
             case "gaussianrandomtimer":
             case "poissonrandomtimer":
                 return new String[][] {
-                        { "HTTP Sampler", "httpsampler" },
+                        { "HTTP Request", "httprequest" },
                         { "JSR223 Sampler", "jsr223sampler" },
                         { "Loop Controller", "loopcontroller" },
                         { "View Results Tree", "viewresultstree" }
@@ -895,19 +838,12 @@ public class AiChatPanel extends JPanel {
                 };
 
             case "jsr223preprocessor":
-                return new String[][] {
-                        { "JSR223 Sampler", "jsr223sampler" },
-                        { "HTTP Sampler", "httpsampler" },
-                        { "JSR223 Post Processor", "jsr223postprocessor" },
-                        { "Response Assertion", "responseassert" }
-                };
-
             case "jsr223postprocessor":
                 return new String[][] {
-                        { "Response Assertion", "responseassert" },
-                        { "View Results Tree", "viewresultstree" },
+                        { "HTTP Sampler", "httpsampler" },
                         { "JSR223 Sampler", "jsr223sampler" },
-                        { "HTTP Sampler", "httpsampler" }
+                        { "Response Assertion", "responseassert" },
+                        { "View Results Tree", "viewresultstree" }
                 };
 
             case "viewresultstree":
@@ -935,210 +871,6 @@ public class AiChatPanel extends JPanel {
         }
     }
 
-    /**
-     * Creates example buttons for common JMeter elements
-     * 
-     * @param panel The panel to add the buttons to
-     */
-    private void createExampleButtons(JPanel panel) {
-        // Get context-aware element suggestions based on the current test plan
-        // structure
-        String[][] elements = getContextAwareElementSuggestions();
-
-        log.info("Creating {} context-aware element suggestion buttons", elements.length);
-
-        for (String[] element : elements) {
-            String displayName = element[0];
-            String normalizedType = element[1];
-
-            // Create a button for the element
-            JButton addButton = createElementButton(displayName, normalizedType, null);
-
-            // Add the button to the panel
-            panel.add(addButton);
-            log.info("Added context-aware button for element: {}", displayName);
-        }
-    }
-
-    /**
-     * Gets context-aware element suggestions based on the current test plan
-     * structure
-     * 
-     * @return Array of suggested elements [display name, normalized type]
-     */
-    private String[][] getContextAwareElementSuggestions() {
-        log.info("Getting context-aware element suggestions");
-
-        // Get the current selected node from JMeter
-        JMeterTreeNode selectedNode = GuiPackage.getInstance().getTreeListener().getCurrentNode();
-
-        if (selectedNode == null) {
-            log.warn("No node selected, suggesting test plan elements");
-            // If no node is selected, suggest creating a test plan
-            return new String[][] {
-                    { "Test Plan", "testplan" },
-                    { "Thread Group", "threadgroup" },
-                    { "HTTP Request", "httprequest" },
-                    { "View Results Tree", "viewresultstree" }
-            };
-        }
-
-        // Get the type of the selected node
-        String selectedNodeType = selectedNode.getStaticLabel().toLowerCase();
-        log.info("Selected node type: {}", selectedNodeType);
-
-        // Return suggestions based on the selected node type
-        return getSuggestionsForNodeType(selectedNodeType);
-    }
-
-    /**
-     * Gets element suggestions based on the type of the selected node
-     * 
-     * @param nodeType The type of the selected node
-     * @return Array of suggested elements [display name, normalized type]
-     */
-    private String[][] getSuggestionsForNodeType(String nodeType) {
-        // Convert node type to lowercase for case-insensitive comparison
-        nodeType = nodeType.toLowerCase();
-
-        // Check for specific node types and return appropriate suggestions
-        switch (nodeType) {
-            case "test plan":
-                return new String[][] {
-                        { "Thread Group", "threadgroup" },
-                        { "HTTP Header Manager", "headerManager" },
-                        { "CSV Data Set Config", "csvdataset" },
-                        { "View Results Tree", "viewresultstree" }
-                };
-
-            case "thread group":
-            case "setUp thread group":
-            case "tearDown thread group":
-                return new String[][] {
-                        { "HTTP Request", "httprequest" },
-                        { "Loop Controller", "loopcontroller" },
-                        { "JSR223 Sampler", "jsr223sampler" },
-                        { "If Controller", "ifcontroller" }
-                };
-
-            case "http request":
-            case "http sampler":
-                return new String[][] {
-                        { "Response Assertion", "responseassert" },
-                        { "JSON Path Assertion", "jsonpathassert" },
-                        { "JSR223 Pre Processor", "jsr223preprocessor" },
-                        { "JSR223 Post Processor", "jsr223postprocessor" }
-                };
-
-            case "loop controller":
-            case "if controller":
-            case "while controller":
-            case "transaction controller":
-            case "runtime controller":
-                return new String[][] {
-                        { "HTTP Request", "httprequest" },
-                        { "JSR223 Sampler", "jsr223sampler" },
-                        { "Loop Controller", "loopcontroller" },
-                        { "If Controller", "ifcontroller" }
-                };
-
-            case "view results tree":
-            case "aggregate report":
-                return new String[][] {
-                        { "Thread Group", "threadgroup" },
-                        { "HTTP Request", "httprequest" },
-                        { "View Results Tree", "viewresultstree" },
-                        { "Aggregate Report", "aggregatereport" }
-                };
-
-            case "response assertion":
-            case "json path assertion":
-            case "duration assertion":
-            case "size assertion":
-            case "xpath assertion":
-                return new String[][] {
-                        { "HTTP Request", "httprequest" },
-                        { "Response Assertion", "responseassert" },
-                        { "JSON Path Assertion", "jsonpathassert" },
-                        { "XPath Assertion", "xpathassert" }
-                };
-
-            case "constant timer":
-            case "uniform random timer":
-            case "gaussian random timer":
-            case "poisson random timer":
-                return new String[][] {
-                        { "HTTP Request", "httprequest" },
-                        { "Constant Timer", "constanttimer" },
-                        { "Uniform Random Timer", "uniformrandomtimer" },
-                        { "Gaussian Random Timer", "gaussianrandomtimer" }
-                };
-
-            case "regex extractor":
-            case "xpath extractor":
-            case "json path extractor":
-            case "boundary extractor":
-                return new String[][] {
-                        { "Regex Extractor", "regexextractor" },
-                        { "XPath Extractor", "xpathextractor" },
-                        { "JSON Path Extractor", "jsonpathextractor" },
-                        { "Boundary Extractor", "boundaryextractor" }
-                };
-
-            case "listener":
-                return new String[][] {
-                        { "View Results Tree", "viewresultstree" },
-                        { "Aggregate Report", "aggregatereport" },
-                        { "Thread Group", "threadgroup" },
-                        { "HTTP Request", "httprequest" }
-                };
-
-            case "csv data set config":
-            case "http header manager":
-                return new String[][] {
-                        { "Thread Group", "threadgroup" },
-                        { "HTTP Request", "httprequest" },
-                        { "CSV Data Set Config", "csvdataset" },
-                        { "HTTP Header Manager", "headerManager" }
-                };
-
-            case "jsr223 sampler":
-            case "jsr223sampler":
-                return new String[][] {
-                        { "Response Assertion", "responseassert" },
-                        { "JSR223 Pre Processor", "jsr223preprocessor" },
-                        { "JSR223 Post Processor", "jsr223postprocessor" },
-                        { "View Results Tree", "viewresultstree" }
-                };
-
-            case "jsr223 preprocessor":
-            case "jsr223preprocessor":
-            case "jsr223 postprocessor":
-            case "jsr223postprocessor":
-                return new String[][] {
-                        { "HTTP Request", "httprequest" },
-                        { "JSR223 Sampler", "jsr223sampler" },
-                        { "Response Assertion", "responseassert" },
-                        { "View Results Tree", "viewresultstree" }
-                };
-
-            default:
-                return new String[][] {
-                        { "Thread Group", "threadgroup" },
-                        { "HTTP Request", "httprequest" },
-                        { "View Results Tree", "viewresultstree" },
-                        { "JSR223 Sampler", "jsr223sampler" }
-                };
-        }
-    }
-
-    /**
-     * Maps a user-friendly element type to a normalized type that JMeter
-     * understands
-     * 
-     * @param elementType The user-friendly element type
-     * @return The normalized element type, or null if not recognized
-     */
     private String mapToNormalizedElementType(String elementType) {
         elementType = elementType.toLowerCase();
         log.info("Trying to map element type: {}", elementType);
@@ -1287,12 +1019,6 @@ public class AiChatPanel extends JPanel {
         return null;
     }
 
-    /**
-     * Formats an element type for display in the button
-     * 
-     * @param elementType The element type to format
-     * @return The formatted element type
-     */
     private String formatElementType(String elementType) {
         // Capitalize the first letter of each word
         String[] words = elementType.split("\\s+");
@@ -1309,11 +1035,6 @@ public class AiChatPanel extends JPanel {
         return result.toString().trim();
     }
 
-    /**
-     * Sends a user message to the AI and handles the response
-     * 
-     * @param message The user message
-     */
     private void sendUserMessage(String message) {
         // Check if this is a special @optimize command
         if (message.toLowerCase().equals("@optimize") || message.toLowerCase().equals("optimize")) {
@@ -1560,12 +1281,6 @@ public class AiChatPanel extends JPanel {
         }.execute();
     }
 
-    /**
-     * Gets information about the currently selected element in the test plan
-     * 
-     * @return A formatted string with information about the current element, or
-     *         null if no element is selected
-     */
     private String getCurrentElementInfo() {
         try {
             GuiPackage guiPackage = GuiPackage.getInstance();
@@ -1659,12 +1374,6 @@ public class AiChatPanel extends JPanel {
         }
     }
 
-    /**
-     * Gets a description for a specific element type
-     * 
-     * @param elementType The type of element
-     * @return A description of the element
-     */
     private String getElementDescription(String elementType) {
         // Convert to lowercase for case-insensitive comparison
         String type = elementType.toLowerCase();
@@ -1737,9 +1446,6 @@ public class AiChatPanel extends JPanel {
         return "This is a " + elementType + " element in your JMeter test plan.";
     }
 
-    /**
-     * Removes the loading indicator from the chat
-     */
     private void removeLoadingIndicator() {
         log.info("Attempting to remove loading indicator");
         try {
@@ -1763,11 +1469,6 @@ public class AiChatPanel extends JPanel {
         }
     }
 
-    /**
-     * Processes the AI response and handles any element addition requests
-     * 
-     * @param response The AI response
-     */
     private void processAiResponse(String response) {
         if (response == null || response.isEmpty()) {
             appendToChat("No response from AI. Please try again.", Color.RED, false);
@@ -1788,12 +1489,6 @@ public class AiChatPanel extends JPanel {
         });
     }
 
-    /**
-     * Gets a response from the AI based on the conversation history
-     * 
-     * @param message The user message
-     * @return The AI response
-     */
     private String getAiResponse(String message) {
         log.info("Getting AI response for message: {}", message);
 
@@ -1809,5 +1504,194 @@ public class AiChatPanel extends JPanel {
 
         // Call Claude API with full conversation history
         return claudeService.generateResponse(new ArrayList<>(conversationHistory));
+    }
+
+    /**
+     * Creates example buttons for JMeter elements based on context.
+     * This method can be called to populate the UI with suggestion buttons.
+     * @param panel The panel to add the buttons to
+     */
+    private void createExampleButtons(JPanel panel) {
+        // Get context-aware element suggestions based on the current test plan
+        // structure
+        String[][] elements = getContextAwareElementSuggestions();
+
+        log.info("Creating {} context-aware element suggestion buttons", elements.length);
+
+        for (String[] element : elements) {
+            String displayName = element[0];
+            String normalizedType = element[1];
+
+            // Create a button for the element
+            JButton addButton = createElementButton(displayName, normalizedType, null);
+
+            // Add the button to the panel
+            panel.add(addButton);
+            log.info("Added context-aware button for element: {}", displayName);
+        }
+    }
+
+    private String[][] getContextAwareElementSuggestions() {
+        log.info("Getting context-aware element suggestions");
+
+        // First try to get context-aware suggestions based on the current node
+        String[][] contextSuggestions = suggestRelatedElements();
+        if (contextSuggestions != null && contextSuggestions.length > 0) {
+            log.info("Returning {} context-aware suggestions", contextSuggestions.length);
+            return contextSuggestions;
+        }
+        
+        // If no context-specific suggestions, fall back to node type suggestions
+        JMeterTreeNode selectedNode = GuiPackage.getInstance().getTreeListener().getCurrentNode();
+
+        if (selectedNode == null) {
+            log.warn("No node selected, suggesting test plan elements");
+            // If no node is selected, suggest creating a test plan
+            return new String[][] {
+                    { "Test Plan", "testplan" },
+                    { "Thread Group", "threadgroup" },
+                    { "HTTP Request", "httprequest" },
+                    { "View Results Tree", "viewresultstree" }
+            };
+        }
+
+        // Get the type of the selected node
+        String selectedNodeType = selectedNode.getStaticLabel().toLowerCase();
+        log.info("Selected node type: {}", selectedNodeType);
+
+        // Return suggestions based on the selected node type
+        return getSuggestionsForNodeType(selectedNodeType);
+    }
+
+    private String[][] getSuggestionsForNodeType(String nodeType) {
+        // Convert node type to lowercase for case-insensitive comparison
+        nodeType = nodeType.toLowerCase();
+
+        // Check for specific node types and return appropriate suggestions
+        switch (nodeType) {
+            case "test plan":
+                return new String[][] {
+                        { "Thread Group", "threadgroup" },
+                        { "HTTP Header Manager", "headerManager" },
+                        { "CSV Data Set Config", "csvdataset" },
+                        { "View Results Tree", "viewresultstree" }
+                };
+
+            case "thread group":
+            case "setUp thread group":
+            case "tearDown thread group":
+                return new String[][] {
+                        { "HTTP Request", "httprequest" },
+                        { "Loop Controller", "loopcontroller" },
+                        { "JSR223 Sampler", "jsr223sampler" },
+                        { "If Controller", "ifcontroller" }
+                };
+
+            case "http request":
+            case "http sampler":
+                return new String[][] {
+                        { "Response Assertion", "responseassert" },
+                        { "JSON Path Assertion", "jsonpathassert" },
+                        { "JSR223 Pre Processor", "jsr223preprocessor" },
+                        { "JSR223 Post Processor", "jsr223postprocessor" }
+                };
+
+            case "loop controller":
+            case "if controller":
+            case "while controller":
+            case "transaction controller":
+            case "runtime controller":
+                return new String[][] {
+                        { "HTTP Request", "httprequest" },
+                        { "JSR223 Sampler", "jsr223sampler" },
+                        { "Loop Controller", "loopcontroller" },
+                        { "If Controller", "ifcontroller" }
+                };
+
+            case "view results tree":
+            case "aggregate report":
+                return new String[][] {
+                        { "Thread Group", "threadgroup" },
+                        { "HTTP Request", "httprequest" },
+                        { "View Results Tree", "viewresultstree" },
+                        { "Aggregate Report", "aggregatereport" }
+                };
+
+            case "response assertion":
+            case "json path assertion":
+            case "duration assertion":
+            case "size assertion":
+            case "xpath assertion":
+                return new String[][] {
+                        { "HTTP Request", "httprequest" },
+                        { "Response Assertion", "responseassert" },
+                        { "JSON Path Assertion", "jsonpathassert" },
+                        { "XPath Assertion", "xpathassert" }
+                };
+
+            case "constant timer":
+            case "uniform random timer":
+            case "gaussian random timer":
+            case "poisson random timer":
+                return new String[][] {
+                        { "HTTP Request", "httprequest" },
+                        { "Constant Timer", "constanttimer" },
+                        { "Uniform Random Timer", "uniformrandomtimer" },
+                        { "Gaussian Random Timer", "gaussianrandomtimer" }
+                };
+
+            case "regex extractor":
+            case "xpath extractor":
+            case "json path extractor":
+            case "boundary extractor":
+                return new String[][] {
+                        { "Regex Extractor", "regexextractor" },
+                        { "XPath Extractor", "xpathextractor" },
+                        { "JSON Path Extractor", "jsonpathextractor" },
+                        { "Boundary Extractor", "boundaryextractor" }
+                };
+
+            case "listener":
+                return new String[][] {
+                        { "View Results Tree", "viewresultstree" },
+                        { "Aggregate Report", "aggregatereport" },
+                        { "Thread Group", "threadgroup" },
+                        { "HTTP Request", "httprequest" }
+                };
+
+            case "csv data set config":
+            case "http header manager":
+                return new String[][] {
+                        { "Thread Group", "threadgroup" },
+                        { "HTTP Request", "httprequest" },
+                        { "CSV Data Set Config", "csvdataset" },
+                        { "HTTP Header Manager", "headerManager" }
+                };
+
+            case "jsr223sampler":
+                return new String[][] {
+                        { "Response Assertion", "responseassert" },
+                        { "JSR223 Pre Processor", "jsr223preprocessor" },
+                        { "JSR223 Post Processor", "jsr223postprocessor" },
+                        { "View Results Tree", "viewresultstree" }
+                };
+
+            case "jsr223preprocessor":
+            case "jsr223postprocessor":
+                return new String[][] {
+                        { "HTTP Request", "httprequest" },
+                        { "JSR223 Sampler", "jsr223sampler" },
+                        { "Response Assertion", "responseassert" },
+                        { "View Results Tree", "viewresultstree" }
+                };
+
+            default:
+                return new String[][] {
+                        { "Thread Group", "threadgroup" },
+                        { "HTTP Request", "httprequest" },
+                        { "View Results Tree", "viewresultstree" },
+                        { "JSR223 Sampler", "jsr223sampler" }
+                };
+        }
     }
 }
