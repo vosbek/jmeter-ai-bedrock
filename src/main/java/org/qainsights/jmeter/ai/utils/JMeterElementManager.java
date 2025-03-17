@@ -2,14 +2,11 @@ package org.qainsights.jmeter.ai.utils;
 
 import org.apache.jmeter.gui.GuiPackage;
 import org.apache.jmeter.gui.tree.JMeterTreeNode;
-import org.apache.jmeter.gui.action.ActionRouter;
 import org.apache.jmeter.gui.JMeterGUIComponent;
 import org.apache.jmeter.testelement.TestElement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.event.ActionEvent;
-import java.lang.reflect.Constructor;
 import java.util.HashMap;
 import java.util.Map;
 import javax.swing.tree.TreePath;
@@ -40,11 +37,16 @@ public class JMeterElementManager {
         ELEMENT_CLASS_MAP.put("httpsampler",
                 new ElementClassInfo("org.apache.jmeter.protocol.http.sampler.HTTPSamplerProxy",
                         "org.apache.jmeter.protocol.http.control.gui.HttpTestSampleGui"));
-        ELEMENT_CLASS_MAP.put("ftprequest", new ElementClassInfo("org.apache.jmeter.protocol.ftp.sampler.FTPSampler",
-                "org.apache.jmeter.protocol.ftp.control.gui.FtpTestSamplerGui"));
+        
+        ELEMENT_CLASS_MAP.put("httptestsample",
+                new ElementClassInfo("org.apache.jmeter.protocol.http.sampler.HTTPSamplerProxy",
+                        "org.apache.jmeter.protocol.http.control.gui.HttpTestSampleGui"));
+        
         ELEMENT_CLASS_MAP.put("httprequest",
                 new ElementClassInfo("org.apache.jmeter.protocol.http.sampler.HTTPSamplerProxy",
                         "org.apache.jmeter.protocol.http.control.gui.HttpTestSampleGui"));
+        ELEMENT_CLASS_MAP.put("ftprequest", new ElementClassInfo("org.apache.jmeter.protocol.ftp.sampler.FTPSampler",
+                "org.apache.jmeter.protocol.ftp.control.gui.FtpTestSamplerGui"));
         ELEMENT_CLASS_MAP.put("jdbcrequest", new ElementClassInfo("org.apache.jmeter.protocol.jdbc.sampler.JDBCSampler",
                 "org.apache.jmeter.testbeans.gui.TestBeanGUI"));
         ELEMENT_CLASS_MAP.put("javarequest", new ElementClassInfo("org.apache.jmeter.protocol.java.sampler.JavaSampler",
@@ -189,6 +191,9 @@ public class JMeterElementManager {
                 "org.apache.jmeter.extractor.gui.RegexExtractorGui"));
         ELEMENT_CLASS_MAP.put("xpathextractor", new ElementClassInfo("org.apache.jmeter.extractor.XPathExtractor",
                 "org.apache.jmeter.extractor.gui.XPathExtractorGui"));
+        ELEMENT_CLASS_MAP.put("jsonpostprocessor",
+                new ElementClassInfo("org.apache.jmeter.extractor.json.jsonpath.JSONPostProcessor",
+                        "org.apache.jmeter.extractor.json.jsonpath.gui.JSONPostProcessorGui"));
         ELEMENT_CLASS_MAP.put("jsonpathextractor",
                 new ElementClassInfo("org.apache.jmeter.extractor.json.jsonpath.JSONPostProcessor",
                         "org.apache.jmeter.extractor.json.jsonpath.gui.JSONPostProcessorGui"));
@@ -558,8 +563,18 @@ public class JMeterElementManager {
         }
 
         try {
-            // Create a new test plan
-            ActionRouter.getInstance().doActionNow(new ActionEvent(guiPackage.getMainFrame(), 0, "new"));
+            // Create a new test plan directly
+            org.apache.jmeter.testelement.TestPlan testPlan = new org.apache.jmeter.testelement.TestPlan();
+            testPlan.setName("Test Plan");
+            testPlan.setProperty(TestElement.TEST_CLASS, org.apache.jmeter.testelement.TestPlan.class.getName());
+            testPlan.setProperty(TestElement.GUI_CLASS, org.apache.jmeter.control.gui.TestPlanGui.class.getName());
+            
+            // Create a root node with the test plan
+            JMeterTreeNode root = new JMeterTreeNode(testPlan, null);
+            
+            // Add the root node to the tree model
+            guiPackage.getTreeModel().setRoot(root);
+            
             log.info("Created a new test plan");
             return true;
         } catch (Exception e) {
@@ -625,6 +640,8 @@ public class JMeterElementManager {
         String normalizedType = normalizeElementType(elementType);
 
         switch (normalizedType) {
+            case "httptestsample":
+                return "HTTP Request";
             case "httpsampler":
                 return "HTTP Request";
             case "loopcontroller":
@@ -844,7 +861,7 @@ public class JMeterElementManager {
                 || normalizedType.contains("table")
                 || normalizedType.contains("graph") || normalizedType.contains("assertion")
                 || normalizedType.contains("assertion");
-        boolean isAddingAssertion = normalizedType.contains("assertion");
+        boolean isAddingAssertion = normalizedType.contains("assertion") || normalizedType.equals("responseassert");
 
         log.info(
                 "Element categories: TestPlan={}, ThreadGroup={}, Controller={}, Sampler={}, Timer={}, PreProcessor={}, PostProcessor={}, ConfigElement={}, Listener={}, Assertion={}",
@@ -883,6 +900,94 @@ public class JMeterElementManager {
         // conservative and return false
         log.info("Could not determine compatibility for node type: {} and element type: {}", nodeType, normalizedType);
         return false;
+    }
+
+    /**
+     * Gets a user-friendly description for a JMeter element type.
+     * 
+     * @param elementType The element type (class name)
+     * @return A user-friendly description of the element
+     */
+    public static String getElementDescription(String elementType) {
+        if (elementType == null) {
+            return "Unknown element type";
+        }
+        
+        // Map common element types to descriptions
+        switch (elementType.toLowerCase()) {
+            case "httpsamplerproxy":
+                return "HTTP Sampler allows you to send HTTP/HTTPS requests to a web server.";
+            case "httpdefaults":
+                return "HTTP Request Defaults lets you specify default values for HTTP Request samplers.";
+            case "cookiemanager":
+                return "HTTP Cookie Manager lets you control and manage HTTP cookies in your test.";
+            case "headermanager":
+                return "HTTP Header Manager lets you add or override HTTP request headers.";
+            case "cachemanager":
+                return "HTTP Cache Manager emulates browser cache behavior.";
+            case "threadgroup":
+                return "Thread Group defines a pool of users that will execute the test plan.";
+            case "loopcontroller":
+                return "Loop Controller lets you control how many times operations are executed.";
+            case "ifcontroller":
+                return "If Controller allows you to control whether test elements are executed based on a condition.";
+            case "whilecontroller":
+                return "While Controller repeatedly executes test elements while a condition is true.";
+            case "foreachcontroller":
+                return "ForEach Controller lets you loop through a set of variables.";
+            case "transactioncontroller":
+                return "Transaction Controller generates an additional sample which measures the overall time taken to execute.";
+            case "timerwrapper":
+                return "Timer controls the time JMeter waits between each request.";
+            case "constanttimer":
+                return "Constant Timer adds a fixed delay between requests.";
+            case "uniformrandomtimer":
+                return "Uniform Random Timer adds a random delay with a uniform distribution.";
+            case "gaussianrandomtimer":
+                return "Gaussian Random Timer adds a random delay with a Gaussian distribution.";
+            case "assertion":
+                return "Assertion allows you to validate the response of a request.";
+            case "responseassertionguiwrapper":
+                return "Response Assertion lets you check the content of a server response.";
+            case "jsrassertion":
+                return "JSR223 Assertion allows you to create custom assertions using scripting languages.";
+            case "xmlassertion":
+                return "XML Assertion verifies that the response is a well-formed XML document.";
+            case "jsonpathassertion":
+                return "JSON Path Assertion extracts values from JSON responses for validation.";
+            case "xpathassertionguiwrapper":
+                return "XPath Assertion allows you to validate XML responses using XPath expressions.";
+            case "durationassertion":
+                return "Duration Assertion checks that a response was received within a given amount of time.";
+            case "sizeassertion":
+                return "Size Assertion verifies that the response contains the right number of bytes.";
+            case "jsr223sampler":
+                return "JSR223 Sampler allows you to create custom requests using scripting languages.";
+            case "jdbcsampler":
+                return "JDBC Request allows you to send SQL queries to a database.";
+            case "ftpsampler":
+                return "FTP Request allows you to send FTP requests to an FTP server.";
+            case "javasampler":
+                return "Java Request allows you to create a custom sampler using Java code.";
+            case "ldapsampler":
+                return "LDAP Request allows you to send requests to an LDAP server.";
+            case "mailreader":
+                return "Mail Reader Sampler allows you to read emails from a POP3/IMAP server.";
+            case "smtpsampler":
+                return "SMTP Sampler allows you to send emails via SMTP.";
+            case "soapsampler":
+                return "SOAP/XML-RPC Request allows you to send SOAP or XML-RPC requests.";
+            case "tcpsampler":
+                return "TCP Sampler allows you to send TCP requests.";
+            case "testaction":
+                return "Test Action allows you to pause or stop a test.";
+            case "debugsampler":
+                return "Debug Sampler shows JMeter variables and properties.";
+            case "jsonsamplerproxy":
+                return "JSON Request sends JSON requests to a server.";
+            default:
+                return "JMeter element of type: " + elementType;
+        }
     }
 
     /**

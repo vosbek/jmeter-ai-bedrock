@@ -57,7 +57,7 @@ public class TreeNavigationButtons {
         button.setToolTipText(tooltip);
         
         // Set consistent size
-        button.setPreferredSize(new Dimension(36, 36));
+        // button.setPreferredSize(new Dimension(36, 36));
         
         // Center the text
         button.setHorizontalAlignment(SwingConstants.CENTER);
@@ -99,24 +99,37 @@ public class TreeNavigationButtons {
                     updateUpButtonState();
                 });
             });
+        } else {
+            log.warn("GuiPackage or TreeListener is null, navigation buttons may not work properly");
         }
         
         upButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+                log.info("Up button clicked");
+                
                 // get current JMeter selected element
                 GuiPackage guiPackage = GuiPackage.getInstance();
                 if (guiPackage == null) {
+                    log.error("GuiPackage is null, cannot navigate");
                     return;
                 }
+                
+                if (guiPackage.getTreeListener() == null) {
+                    log.error("TreeListener is null, cannot navigate");
+                    return;
+                }
+                
                 JMeterTreeNode currentNode = guiPackage.getTreeListener().getCurrentNode();
                 if (currentNode == null) {
+                    log.error("Current node is null, cannot navigate");
                     return;
                 }
                 
                 // Get parent node
                 TreeNode parentNode = currentNode.getParent();
                 if (parentNode == null) {
+                    log.warn("Parent node is null, cannot navigate up");
                     return;
                 }
                 
