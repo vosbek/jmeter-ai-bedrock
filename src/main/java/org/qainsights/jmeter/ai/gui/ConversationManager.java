@@ -31,6 +31,7 @@ public class ConversationManager {
     private final JButton sendButton;
     private final JComboBox<ModelInfo> modelSelector;
     private final ElementSuggestionManager elementSuggestionManager;
+    private final CodeCommandHandler codeCommandHandler;
     
     /**
      * Constructs a new ConversationManager.
@@ -54,6 +55,7 @@ public class ConversationManager {
         this.messageProcessor = messageProcessor;
         this.elementSuggestionManager = elementSuggestionManager;
         this.conversationHistory = new ArrayList<>();
+        this.codeCommandHandler = new CodeCommandHandler(claudeService);
     }
     
     /**
@@ -83,7 +85,8 @@ public class ConversationManager {
                 "request help with creating test elements, or get advice on optimizing your tests.\n\n" +
                 "**Special commands:**\n" +
                 "- Use `@this` to get information about the currently selected element\n" +
-                "- Use `@optimize` to get optimization suggestions for your test plan\n\n" +
+                "- Use `@optimize` to get optimization suggestions for your test plan\n" +
+                "- Use `@code [command]` to improve selected code in JSR223 elements\n\n" +
                 "How can I assist you today?";
         
         try {
@@ -128,6 +131,9 @@ public class ConversationManager {
             return;
         } else if (message.trim().startsWith("@optimize")) {
             handleOptimizeCommand();
+            return;
+        } else if (message.trim().startsWith("@code")) {
+            handleCodeCommand(message);
             return;
         }
         
@@ -278,6 +284,82 @@ public class ConversationManager {
     /**
      * Handles the @optimize command to get optimization suggestions for the test plan.
      */
+    /**
+     * Handles the @code command to process code in JSR223 elements.
+     * 
+     * @param message The message containing the @code command
+     */
+    private void handleCodeCommand(String message) {
+        log.info("Processing @code command: {}", message);
+        
+        // Disable input while processing
+        messageField.setText("");
+        messageField.setEnabled(false);
+        sendButton.setEnabled(false);
+        
+        try {
+            // Add user message to chat
+            messageProcessor.appendMessage(chatArea.getStyledDocument(), message, Color.BLACK, true);
+            
+            // Add loading indicator
+            addLoadingIndicator();
+            
+            // Process the command in a background thread
+            new SwingWorker<String, Void>() {
+                @Override
+                protected String doInBackground() throws Exception {
+                    return codeCommandHandler.processCodeCommand(message);
+                }
+                
+                @Override
+                protected void done() {
+                    try {
+                        // Remove the loading indicator
+                        removeLoadingIndicator();
+                        
+                        // Get the response
+                        String response = get();
+                        
+                        // Add the response to the chat
+                        try {
+                            messageProcessor.appendMessage(chatArea.getStyledDocument(), response, new Color(0, 51, 102), false);
+                        } catch (BadLocationException ex) {
+                            log.error("Error displaying response", ex);
+                        }
+                        
+                        // Re-enable input
+                        messageField.setEnabled(true);
+                        sendButton.setEnabled(true);
+                        messageField.requestFocusInWindow();
+                    } catch (InterruptedException | ExecutionException e) {
+                        log.error("Error processing @code command", e);
+                        
+                        // Remove the loading indicator
+                        removeLoadingIndicator();
+                        
+                        // Display error message
+                        try {
+                            messageProcessor.appendMessage(chatArea.getStyledDocument(),
+                                    "Sorry, I encountered an error while processing your code command. Please try again.",
+                                    Color.RED, false);
+                        } catch (BadLocationException ex) {
+                            log.error("Error displaying error message", ex);
+                        }
+                        
+                        // Re-enable input
+                        messageField.setEnabled(true);
+                        sendButton.setEnabled(true);
+                        messageField.requestFocusInWindow();
+                    }
+                }
+            }.execute();
+        } catch (BadLocationException e) {
+            log.error("Error adding message to chat", e);
+            messageField.setEnabled(true);
+            sendButton.setEnabled(true);
+        }
+    }
+    
     private void handleOptimizeCommand() {
         log.info("Processing @optimize command");
         
@@ -343,6 +425,19 @@ public class ConversationManager {
         // This method would be implemented to get information about the currently selected element
         // For now, we'll return a placeholder message
         return "Information about the currently selected element would be displayed here.";
+    }
+    
+    /**
+     * Adds a loading indicator to the chat area.
+     */
+    private void addLoadingIndicator() {
+        log.info("Adding loading indicator");
+        try {
+            messageProcessor.appendMessage(chatArea.getStyledDocument(), "AI is thinking...", new Color(128, 128, 128), false);
+            log.info("Loading indicator added");
+        } catch (BadLocationException e) {
+            log.error("Error adding loading indicator", e);
+        }
     }
     
     /**

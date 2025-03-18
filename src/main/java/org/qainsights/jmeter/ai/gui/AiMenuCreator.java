@@ -4,12 +4,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.jmeter.gui.plugin.MenuCreator;
 
-
 import javax.swing.*;
 
-public class AiMenuCreator implements  MenuCreator {
+public class AiMenuCreator implements MenuCreator {
     private static final Logger log = LoggerFactory.getLogger(AiMenuCreator.class);
-
+    
     @Override
     public JMenuItem[] getMenuItemsAtLocation(MENU_LOCATION location) {
         if (location == MENU_LOCATION.RUN) {

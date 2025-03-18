@@ -187,6 +187,15 @@ public class AiChatPanel extends JPanel {
             }
         });
         
+        // Add focus listener to store selected text when clicking in the chat box
+        messageField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                log.info("Message field gained focus, storing selected text");
+                CodeCommandHandler.storeSelectedText();
+            }
+        });
+        
         JScrollPane messageScrollPane = new JScrollPane(messageField);
         messageScrollPane.setBorder(BorderFactory.createEmptyBorder());
         inputPanel.add(messageScrollPane, BorderLayout.CENTER);
@@ -364,6 +373,9 @@ public class AiChatPanel extends JPanel {
             return;
         } else if (message.trim().startsWith("@optimize")) {
             handleOptimizeCommand();
+            return;
+        } else if (message.trim().startsWith("@code")) {
+            handleCodeCommand(message);
             return;
         }
         
@@ -552,6 +564,77 @@ public class AiChatPanel extends JPanel {
                     try {
                         messageProcessor.appendMessage(chatArea.getStyledDocument(),
                                 "Sorry, I encountered an error while getting optimization suggestions. Please try again.",
+                                Color.RED, false);
+                    } catch (BadLocationException ex) {
+                        log.error("Error displaying error message", ex);
+                    }
+                    
+                    // Re-enable input
+                    messageField.setEnabled(true);
+                    sendButton.setEnabled(true);
+                    messageField.requestFocusInWindow();
+                }
+            }
+        }.execute();
+    }
+    
+    /**
+     * Handles the @code command to process code in JSR223 elements.
+     * 
+     * @param message The message containing the @code command
+     */
+    private void handleCodeCommand(String message) {
+        log.info("Processing @code command");
+        
+        // Use the message passed from the sendMessage method
+        
+        try {
+            // Add user message to chat
+            messageProcessor.appendMessage(chatArea.getStyledDocument(), message, Color.BLACK, true);
+        } catch (BadLocationException e) {
+            log.error("Error adding message to chat", e);
+        }
+        
+        // Disable input while processing
+        messageField.setText("");
+        messageField.setEnabled(false);
+        sendButton.setEnabled(false);
+        
+        // Process the command in a background thread
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                // Use the CodeCommandHandler to process the code command
+                CodeCommandHandler codeCommandHandler = new CodeCommandHandler(claudeService);
+                return codeCommandHandler.processCodeCommand(message);
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    // Remove the loading indicator
+                    removeLoadingIndicator();
+                    
+                    // Get the response
+                    String response = get();
+                    
+                    // Process the response
+                    processAiResponse(response);
+                    
+                    // Re-enable input
+                    messageField.setEnabled(true);
+                    sendButton.setEnabled(true);
+                    messageField.requestFocusInWindow();
+                } catch (InterruptedException | ExecutionException e) {
+                    log.error("Error processing code command", e);
+                    
+                    // Remove the loading indicator
+                    removeLoadingIndicator();
+                    
+                    // Display error message
+                    try {
+                        messageProcessor.appendMessage(chatArea.getStyledDocument(),
+                                "Sorry, I encountered an error while processing your code command. Please try again.",
                                 Color.RED, false);
                     } catch (BadLocationException ex) {
                         log.error("Error displaying error message", ex);
