@@ -15,7 +15,7 @@ import org.slf4j.LoggerFactory;
 /**
  * ClaudeService class.
  */
-public class ClaudeService {
+public class ClaudeService implements AiService {
     private static final Logger log = LoggerFactory.getLogger(ClaudeService.class);
     private final int maxHistorySize;
     private String currentModelId;
