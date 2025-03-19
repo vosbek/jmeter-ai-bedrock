@@ -33,19 +33,16 @@ public class CodeCommandHandler {
      * This should be called when the user clicks in the chat box.
      */
     public static void storeSelectedText() {
-        log.info("Storing selected text");
         RSyntaxTextArea scriptEditor = findJSR223ScriptEditor();
         if (scriptEditor != null) {
             String selectedText = scriptEditor.getSelectedText();
             if (selectedText != null && !selectedText.isEmpty()) {
                 lastSelectedText = selectedText;
                 lastScriptEditor = scriptEditor;
-                log.info("Stored selected text: '{}'", lastSelectedText);
             } else {
-                log.info("No text is currently selected in the editor");
                 // Keep the last stored text if nothing is currently selected
                 if (lastScriptEditor == scriptEditor && lastSelectedText != null && !lastSelectedText.isEmpty()) {
-                    log.info("Keeping previously stored text: '{}'", lastSelectedText);
+                    lastSelectedText = lastSelectedText;
                 }
             }
         } else {
@@ -57,7 +54,6 @@ public class CodeCommandHandler {
                 if (selectedText != null && !selectedText.isEmpty()) {
                     lastSelectedText = selectedText;
                     lastScriptEditor = scriptEditor;
-                    log.info("Stored selected text from fallback search: '{}'", lastSelectedText);
                 }
             }
         }
@@ -86,9 +82,6 @@ public class CodeCommandHandler {
         try {
             isProcessing = true;
             
-            // Log the exact message for debugging
-            log.info("Received message: '{}'", message);
-            
             // Make sure the message starts with @code
             if (!message.trim().startsWith("@code")) {
                 message = "@code " + message.trim();
@@ -106,20 +99,16 @@ public class CodeCommandHandler {
             if (command == null || command.trim().isEmpty()) {
                 command = "improve";
             }
-            log.info("Processing @code command with action: {}", command);
             
             // Find the JSR223 element
-            log.info("Looking for JSR223 script editor");
             RSyntaxTextArea scriptEditor = findJSR223ScriptEditor();
             if (scriptEditor == null) {
                 log.error("Could not find JSR223 script editor");
                 return "No JSR223 element is currently selected. Please select a JSR223 element first.";
             }
-            log.info("Found JSR223 script editor: {}", scriptEditor);
             
             // Get the selected text - either from the editor or from the stored value
             String selectedText = scriptEditor.getSelectedText();
-            log.info("Current selected text: '{}'", selectedText);
             
             // If no text is currently selected, use the last stored text if available
             if ((selectedText == null || selectedText.isEmpty())) {
@@ -127,7 +116,6 @@ public class CodeCommandHandler {
                     // Use the last stored text even if the editor is different
                     // This allows for more flexibility when switching between editors
                     selectedText = lastSelectedText;
-                    log.info("Using stored selected text: '{}'", selectedText);
                     
                     // Update the last script editor to the current one
                     lastScriptEditor = scriptEditor;
@@ -135,8 +123,7 @@ public class CodeCommandHandler {
                     // If we still don't have text, try to get all text from the editor
                     selectedText = scriptEditor.getText();
                     if (selectedText != null && !selectedText.trim().isEmpty()) {
-                        log.info("No selection found, using all text from editor: '{}'", 
-                                (selectedText.length() > 50 ? selectedText.substring(0, 50) + "..." : selectedText));
+                        // Do nothing, we already have the text
                     }
                 }
             }
@@ -204,41 +191,31 @@ public class CodeCommandHandler {
      */
     private static RSyntaxTextArea findJSR223ScriptEditor() {
         try {
-            log.info("Getting GuiPackage instance");
             GuiPackage guiPackage = GuiPackage.getInstance();
             if (guiPackage == null) {
                 log.error("GuiPackage is null");
                 return null;
             }
-            log.info("GuiPackage instance: {}", guiPackage);
             
-            log.info("Getting current node");
             JMeterTreeNode node = guiPackage.getTreeListener().getCurrentNode();
             if (node == null) {
                 log.error("Current node is null");
                 return null;
             }
-            log.info("Current node: {}", node);
             
             // Check if this is a JSR223 element
-            log.info("Getting class name of current element");
             String className = node.getTestElement().getClass().getName();
-            log.info("Class name: {}", className);
             if (!className.contains("JSR223")) {
                 log.error("Current element is not a JSR223 element: {}", className);
                 return null;
             }
-            log.info("Current element is a JSR223 element");
             
             // Get the GUI component
-            log.info("Getting current GUI component");
             JMeterGUIComponent guiComp = guiPackage.getCurrentGui();
-            log.info("GUI component: {}", guiComp);
             if (!(guiComp instanceof TestBeanGUI)) {
                 log.error("Current GUI is not a TestBeanGUI: {}", guiComp.getClass().getName());
                 return null;
             }
-            log.info("Current GUI is a TestBeanGUI");
             
             TestBeanGUI testBeanGUI = (TestBeanGUI) guiComp;
             
@@ -251,7 +228,6 @@ public class CodeCommandHandler {
             // Second attempt: Try to find it in the parent container
             Container parent = testBeanGUI.getParent();
             if (parent != null) {
-                log.info("Searching in parent container: {}", parent);
                 scriptEditor = findRSyntaxTextArea(parent);
                 if (scriptEditor != null) {
                     return scriptEditor;
@@ -260,7 +236,6 @@ public class CodeCommandHandler {
             
             // Third attempt: Try to find it in the main frame
             if (guiPackage.getMainFrame() != null) {
-                log.info("Searching in main frame: {}", guiPackage.getMainFrame());
                 scriptEditor = findRSyntaxTextArea(guiPackage.getMainFrame());
                 if (scriptEditor != null) {
                     return scriptEditor;
@@ -268,7 +243,6 @@ public class CodeCommandHandler {
             }
             
             // Final attempt: Search all windows for the RSyntaxTextArea
-            log.info("Searching in all windows");
             scriptEditor = findRSyntaxTextAreaInAllWindows();
             if (scriptEditor != null) {
                 return scriptEditor;
@@ -289,18 +263,13 @@ public class CodeCommandHandler {
      * @return The RSyntaxTextArea, or null if not found
      */
     private static RSyntaxTextArea findRSyntaxTextArea(Container container) {
-        log.info("Searching for RSyntaxTextArea in container: {}", container);
-        log.info("Container has {} components", container.getComponentCount());
-        
         // First, try to find the component by name - often used in JMeter for script areas
         for (Component component : container.getComponents()) {
             String componentName = component.getName();
             if (componentName != null && 
                 (componentName.contains("script") || componentName.contains("Script") || 
                  componentName.contains("code") || componentName.contains("Code"))) {
-                log.info("Found component with script/code in name: {}", component);
                 if (component instanceof RSyntaxTextArea) {
-                    log.info("Found RSyntaxTextArea by name: {}", component);
                     return (RSyntaxTextArea) component;
                 }
             }
@@ -308,14 +277,10 @@ public class CodeCommandHandler {
         
         // Regular recursive search
         for (Component component : container.getComponents()) {
-            log.info("Checking component: {}", component.getClass().getName());
             if (component instanceof RSyntaxTextArea) {
-                log.info("Found RSyntaxTextArea: {}", component);
                 return (RSyntaxTextArea) component;
             } else if (component.getClass().getName().contains("JSyntaxTextArea")) {
                 // JMeter uses a custom JSyntaxTextArea which extends RSyntaxTextArea
-                log.info("Found JSyntaxTextArea: {}", component);
-                // We can safely cast to RSyntaxTextArea since JSyntaxTextArea extends it
                 return (RSyntaxTextArea) component;
             } else if (component instanceof JScrollPane || 
                       component.getClass().getName().contains("JTextScrollPane")) {
@@ -336,7 +301,6 @@ public class CodeCommandHandler {
                         Component viewComponent = viewport.getComponent(0);
                         if (viewComponent instanceof RSyntaxTextArea || 
                             viewComponent.getClass().getName().contains("JSyntaxTextArea")) {
-                            log.info("Found RSyntaxTextArea in scroll pane: {}", viewComponent);
                             return (RSyntaxTextArea) viewComponent;
                         }
                     }
@@ -344,14 +308,12 @@ public class CodeCommandHandler {
                     log.debug("Error getting viewport from scroll pane", e);
                 }
             } else if (component instanceof Container) {
-                log.info("Recursively searching container: {}", component);
                 RSyntaxTextArea result = findRSyntaxTextArea((Container) component);
                 if (result != null) {
                     return result;
                 }
             }
         }
-        log.info("No RSyntaxTextArea found in container: {}", container);
         return null;
     }
     
@@ -362,15 +324,12 @@ public class CodeCommandHandler {
      * @return The first RSyntaxTextArea found, or null if none found
      */
     private static RSyntaxTextArea findRSyntaxTextAreaInAllWindows() {
-        log.info("Searching for RSyntaxTextArea in all windows");
         
         // Get all windows
         Window[] windows = Window.getWindows();
-        log.info("Found {} windows", windows.length);
         
         // Search each window
         for (Window window : windows) {
-            log.info("Searching window: {}", window);
             if (window.isVisible()) {
                 RSyntaxTextArea textArea = findRSyntaxTextArea(window);
                 if (textArea != null) {
@@ -396,8 +355,6 @@ public class CodeCommandHandler {
             return null;
         }
         
-        log.info("Extracting code from AI response");
-        
         // Pattern to match code blocks: ```[optional language identifier]\n[code]\n```
         Pattern pattern = Pattern.compile("```(?:(?!```)[\\s\\S])*?```", Pattern.DOTALL);
         Matcher matcher = pattern.matcher(response);
@@ -419,11 +376,8 @@ public class CodeCommandHandler {
         }
         
         if (foundCode) {
-            log.info("Extracted code: '{}'",(extractedCode.length() > 50 ? 
-                    extractedCode.substring(0, 50) + "..." : extractedCode));
             return extractedCode.toString();
         } else {
-            log.info("No code blocks found in response");
             return null;
         }
     }
