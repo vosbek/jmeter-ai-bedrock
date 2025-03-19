@@ -12,7 +12,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -75,10 +77,15 @@ public class ElementRenamer {
         
         // Check if the root test plan is selected
         boolean isRootSelected = false;
+        boolean isThreadGroupSelected = false;
         for (JMeterTreeNode node : selectedNodes) {
             if (node.getName().equals("Test Plan")) {
                 isRootSelected = true;
                 break;
+            }
+            // Check if any Thread Group is selected
+            if (node.getTestElement().getClass().getSimpleName().contains("ThreadGroup")) {
+                isThreadGroupSelected = true;
             }
         }
         
@@ -87,17 +94,47 @@ public class ElementRenamer {
         if (isRootSelected) {
             // Rename all elements in the test plan
             JMeterTreeNode root = (JMeterTreeNode) guiPackage.getTreeModel().getRoot();
-            collectElementsToRename(root, elementsToRename);
-        } else {
-            // Rename only selected elements
+            collectElementsToRename(root, elementsToRename, true);
+        } else if (isThreadGroupSelected) {
+            // For Thread Groups, include the Thread Group itself and all its children
             for (JMeterTreeNode node : selectedNodes) {
-                collectElementsToRename(node, elementsToRename);
+                if (node.getTestElement().getClass().getSimpleName().contains("ThreadGroup")) {
+                    // For Thread Groups, collect the Thread Group itself and all its children
+                    log.info("Processing Thread Group: " + node.getName());
+                    // First add the Thread Group itself
+                    ElementInfo info = new ElementInfo();
+                    info.node = node;
+                    info.element = node.getTestElement();
+                    info.name = node.getName();
+                    info.type = node.getTestElement().getClass().getSimpleName();
+                    info.isDisabled = !node.getTestElement().isEnabled();
+                    info.properties = extractRelevantProperties(node.getTestElement());
+                    elementsToRename.add(info);
+                    log.info("Added Thread Group to rename: " + node.getName());
+                    
+                    // Then collect all its children
+                    Enumeration<?> children = node.children();
+                    while (children.hasMoreElements()) {
+                        JMeterTreeNode childNode = (JMeterTreeNode) children.nextElement();
+                        collectElementsToRename(childNode, elementsToRename, true);
+                    }
+                } else {
+                    // For non-Thread Group elements, just collect the element itself
+                    collectElementsToRename(node, elementsToRename, false);
+                }
+            }
+        } else {
+            // Rename only selected elements without their children
+            for (JMeterTreeNode node : selectedNodes) {
+                collectElementsToRename(node, elementsToRename, false);
             }
         }
         
         if (elementsToRename.isEmpty()) {
             return "No elements found to rename";
         }
+        
+        log.info("Collected " + elementsToRename.size() + " elements to rename");
         
         // Generate AI suggestions for renaming
         String suggestions = getAiSuggestions(elementsToRename, command);
@@ -116,28 +153,35 @@ public class ElementRenamer {
      * 
      * @param node The current node to process
      * @param elementsToRename The list to populate with elements to rename
+     * @param processChildren Whether to process child nodes recursively
      */
-    private void collectElementsToRename(JMeterTreeNode node, List<ElementInfo> elementsToRename) {
+    private void collectElementsToRename(JMeterTreeNode node, List<ElementInfo> elementsToRename, boolean processChildren) {
         TestElement element = node.getTestElement();
+        String nodeName = node.getName();
+        String elementType = element.getClass().getSimpleName();
         
-        // Skip the Test Plan node itself
-        if (!node.getName().equals("Test Plan")) {
+        // Always include the node if it's not the Test Plan
+        // (we want to include Thread Groups and all other elements)
+        if (!nodeName.equals("Test Plan")) {
             ElementInfo info = new ElementInfo();
             info.node = node;
             info.element = element;
-            info.name = node.getName();
-            info.type = element.getClass().getSimpleName();
+            info.name = nodeName;
+            info.type = elementType;
             info.isDisabled = !element.isEnabled();
             info.properties = extractRelevantProperties(element);
             
             elementsToRename.add(info);
+            log.info("Added element to rename: " + nodeName + " (Type: " + elementType + ")");
         }
         
-        // Process child nodes
-        Enumeration<?> children = node.children();
-        while (children.hasMoreElements()) {
-            JMeterTreeNode childNode = (JMeterTreeNode) children.nextElement();
-            collectElementsToRename(childNode, elementsToRename);
+        // Process child nodes only if requested
+        if (processChildren) {
+            Enumeration<?> children = node.children();
+            while (children.hasMoreElements()) {
+                JMeterTreeNode childNode = (JMeterTreeNode) children.nextElement();
+                collectElementsToRename(childNode, elementsToRename, true);
+            }
         }
     }
     
@@ -306,57 +350,111 @@ public class ElementRenamer {
                 .filter(line -> line.startsWith("Element ") && line.contains(":"))
                 .collect(Collectors.toList());
         
-        // Get the currently selected node for special handling
+        log.info("Found " + suggestionLines.size() + " suggestion lines from AI");
+        
+        // Get the currently selected nodes for special handling
         GuiPackage guiPackage = GuiPackage.getInstance();
         JMeterTreeNode currentNode = guiPackage != null ? guiPackage.getTreeListener().getCurrentNode() : null;
+        JMeterTreeNode[] selectedNodes = guiPackage != null ? guiPackage.getTreeListener().getSelectedNodes() : null;
+        
+        // Create a set of selected nodes for faster lookup
+        Set<JMeterTreeNode> selectedNodesSet = new HashSet<>();
+        if (selectedNodes != null) {
+            for (JMeterTreeNode node : selectedNodes) {
+                selectedNodesSet.add(node);
+            }
+        }
         
         // Apply suggestions if available
         if (!suggestionLines.isEmpty()) {
-            for (int i = 0; i < Math.min(elementsToRename.size(), suggestionLines.size()); i++) {
-                String line = suggestionLines.get(i);
-                String[] parts = line.split(":", 2);
-                if (parts.length == 2) {
-                    String newName = parts[1].trim();
-                    ElementInfo info = elementsToRename.get(i);
-                    
-                    // Add "Disabled_" prefix if the element is disabled
-                    // First, remove any existing "Disabled_" prefix that might have been added by the AI
-                    if (newName.startsWith(DISABLED_PREFIX)) {
-                        newName = newName.substring(DISABLED_PREFIX.length());
-                    }
-                    
-                    // Now add the prefix if the element is actually disabled
-                    if (info.isDisabled) {
-                        newName = DISABLED_PREFIX + newName;
-                    }
-                    
-                    // Backup the original name before changing it
-                    lastRenameOperation.add(new NameBackup(info.node, info.element, info.name));
-                    
-                    // Apply the new name
-                    info.node.setName(newName);
-                    info.element.setName(newName);
-                    info.element.setProperty(TestElement.NAME, newName);
-                    
-                    // Check if this is the currently selected node
-                    boolean isCurrentNode = (currentNode != null && currentNode.equals(info.node));
-                    
-                    // Update the GUI component if this is the currently selected node
-                    if (isCurrentNode && guiPackage != null) {
-                        // Get the current GUI component and update it
-                        JMeterGUIComponent comp = guiPackage.getCurrentGui();
-                        if (comp != null) {
-                            comp.configure(info.element);
+            // Log the number of elements and suggestions to help with debugging
+            log.info("Processing " + elementsToRename.size() + " elements with " + suggestionLines.size() + " suggestions");
+            
+            // Make sure we're not skipping any elements due to index mismatch
+            for (int i = 0; i < elementsToRename.size(); i++) {
+                ElementInfo info = elementsToRename.get(i);
+                String newName = null;
+                
+                // Try to get the corresponding suggestion
+                if (i < suggestionLines.size()) {
+                    String line = suggestionLines.get(i);
+                    String[] parts = line.split(":", 2);
+                    if (parts.length == 2) {
+                        newName = parts[1].trim();
+                        
+                        // Add "Disabled_" prefix if the element is disabled
+                        // First, remove any existing "Disabled_" prefix that might have been added by the AI
+                        if (newName.startsWith(DISABLED_PREFIX)) {
+                            newName = newName.substring(DISABLED_PREFIX.length());
                         }
+                        
+                        // Now add the prefix if the element is actually disabled
+                        if (info.isDisabled) {
+                            newName = DISABLED_PREFIX + newName;
+                        }
+                        
+                        // Log the rename operation for debugging
+                        log.info("Renaming element " + (i+1) + ": " + info.name + " -> " + newName);
+                        
+                        // Backup the original name before changing it
+                        lastRenameOperation.add(new NameBackup(info.node, info.element, info.name));
+                        
+                        // Apply the new name
+                        info.node.setName(newName);
+                        info.element.setName(newName);
+                        info.element.setProperty(TestElement.NAME, newName);
+                        
+                        // Check if this is the currently selected node
+                        boolean isCurrentNode = (currentNode != null && currentNode.equals(info.node));
+                        boolean isSelectedNode = selectedNodesSet.contains(info.node);
+                        
+                        // Update the GUI component if this is the currently selected node
+                        if (isCurrentNode && guiPackage != null) {
+                            // Get the current GUI component and update it
+                            JMeterGUIComponent comp = guiPackage.getCurrentGui();
+                            if (comp != null) {
+                                comp.configure(info.element);
+                                log.info("Configured current GUI component for element: " + newName);
+                            }
+                        }
+                        
+                        // For all nodes (including selected ones), ensure the tree model is updated
+                        if (guiPackage != null) {
+                            guiPackage.getTreeModel().nodeChanged(info.node);
+                            log.info("Notified tree model of node change for element: " + newName);
+                            
+                            // For selected nodes, apply additional update to ensure visibility
+                            if (isSelectedNode) {
+                                // Force a more thorough update for selected nodes
+                                guiPackage.updateCurrentNode();
+                                log.info("Updated current node for selected element: " + newName);
+                            }
+                        }
+                        
+                        renamedCount++;
                     }
-                    
-                    // Notify the tree model that the node has changed
-                    if (guiPackage != null) {
-                        guiPackage.getTreeModel().nodeChanged(info.node);
-                    }
-                    
-                    renamedCount++;
+                } else {
+                    // We have more elements than suggestions
+                    log.warn("No suggestion found for element " + (i+1) + ": " + info.name);
                 }
+            }
+            
+            // After all renames are applied, force a final GUI refresh
+            if (guiPackage != null) {
+                // Update the current GUI component
+                JMeterGUIComponent comp = guiPackage.getCurrentGui();
+                if (comp != null && currentNode != null) {
+                    comp.configure(currentNode.getTestElement());
+                    log.info("Final GUI component update for current node");
+                }
+                
+                // Ensure the tree is properly updated
+                guiPackage.updateCurrentNode();
+                log.info("Final update of current node");
+                
+                // Repaint the main frame to ensure all visual changes are applied
+                guiPackage.getMainFrame().repaint();
+                log.info("Final repaint of main frame");
             }
         }
         
@@ -378,9 +476,18 @@ public class ElementRenamer {
         // Clear previous undone operation backup before storing new ones
         lastUndoneOperation.clear();
         
-        // Get the currently selected node for special handling
+        // Get the currently selected nodes for special handling
         GuiPackage guiPackage = GuiPackage.getInstance();
         JMeterTreeNode currentNode = guiPackage != null ? guiPackage.getTreeListener().getCurrentNode() : null;
+        JMeterTreeNode[] selectedNodes = guiPackage != null ? guiPackage.getTreeListener().getSelectedNodes() : null;
+        
+        // Create a set of selected nodes for faster lookup
+        Set<JMeterTreeNode> selectedNodesSet = new HashSet<>();
+        if (selectedNodes != null) {
+            for (JMeterTreeNode node : selectedNodes) {
+                selectedNodesSet.add(node);
+            }
+        }
         
         for (NameBackup backup : lastRenameOperation) {
             // Store the current name before undoing for redo functionality
@@ -392,6 +499,7 @@ public class ElementRenamer {
             
             // Check if this is the currently selected node
             boolean isCurrentNode = (currentNode != null && currentNode.equals(backup.node));
+            boolean isSelectedNode = selectedNodesSet.contains(backup.node);
             
             // Update the GUI component if this is the currently selected node
             if (isCurrentNode && guiPackage != null) {
@@ -399,12 +507,21 @@ public class ElementRenamer {
                 JMeterGUIComponent comp = guiPackage.getCurrentGui();
                 if (comp != null) {
                     comp.configure(backup.element);
+                    log.info("Configured current GUI component for element: " + backup.originalName);
                 }
             }
             
-            // Notify the tree model that the node has changed
+            // For all nodes (including selected ones), ensure the tree model is updated
             if (guiPackage != null) {
                 guiPackage.getTreeModel().nodeChanged(backup.node);
+                log.info("Notified tree model of node change for element: " + backup.originalName);
+                
+                // For selected nodes, apply additional update to ensure visibility
+                if (isSelectedNode) {
+                    // Force a more thorough update for selected nodes
+                    guiPackage.updateCurrentNode();
+                    log.info("Updated current node for selected element: " + backup.originalName);
+                }
             }
             
             restoredCount++;
@@ -412,6 +529,24 @@ public class ElementRenamer {
         
         // Clear the backup after undoing
         lastRenameOperation = new ArrayList<>();
+        
+        // After all undos are applied, force a final GUI refresh
+        if (guiPackage != null) {
+            // Update the current GUI component
+            JMeterGUIComponent comp = guiPackage.getCurrentGui();
+            if (comp != null && currentNode != null) {
+                comp.configure(currentNode.getTestElement());
+                log.info("Final GUI component update for current node");
+            }
+            
+            // Ensure the tree is properly updated
+            guiPackage.updateCurrentNode();
+            log.info("Final update of current node");
+            
+            // Repaint the main frame to ensure all visual changes are applied
+            guiPackage.getMainFrame().repaint();
+            log.info("Final repaint of main frame");
+        }
         
         return "Successfully restored " + restoredCount + " element names.";
     }
@@ -431,20 +566,33 @@ public class ElementRenamer {
         // Clear previous rename operation backup before storing new ones
         lastRenameOperation.clear();
         
-        // Get the currently selected node for special handling
+        // Get the currently selected nodes for special handling
         GuiPackage guiPackage = GuiPackage.getInstance();
         JMeterTreeNode currentNode = guiPackage != null ? guiPackage.getTreeListener().getCurrentNode() : null;
+        JMeterTreeNode[] selectedNodes = guiPackage != null ? guiPackage.getTreeListener().getSelectedNodes() : null;
+        
+        // Create a set of selected nodes for faster lookup
+        Set<JMeterTreeNode> selectedNodesSet = new HashSet<>();
+        if (selectedNodes != null) {
+            for (JMeterTreeNode node : selectedNodes) {
+                selectedNodesSet.add(node);
+            }
+        }
         
         for (NameBackup backup : lastUndoneOperation) {
             // Store the current name before redoing for undo functionality
-            lastRenameOperation.add(new NameBackup(backup.node, backup.element, backup.node.getName()));
+            String currentName = backup.node.getName();
+            lastRenameOperation.add(new NameBackup(backup.node, backup.element, currentName));
             
-            backup.node.setName(backup.originalName);
-            backup.element.setName(backup.originalName);
-            backup.element.setProperty(TestElement.NAME, backup.originalName);
+            // Apply the new name (which is stored in originalName in the backup)
+            String newName = backup.originalName;
+            backup.node.setName(newName);
+            backup.element.setName(newName);
+            backup.element.setProperty(TestElement.NAME, newName);
             
             // Check if this is the currently selected node
             boolean isCurrentNode = (currentNode != null && currentNode.equals(backup.node));
+            boolean isSelectedNode = selectedNodesSet.contains(backup.node);
             
             // Update the GUI component if this is the currently selected node
             if (isCurrentNode && guiPackage != null) {
@@ -452,12 +600,21 @@ public class ElementRenamer {
                 JMeterGUIComponent comp = guiPackage.getCurrentGui();
                 if (comp != null) {
                     comp.configure(backup.element);
+                    log.info("Configured current GUI component for element: " + newName);
                 }
             }
             
-            // Notify the tree model that the node has changed
+            // For all nodes (including selected ones), ensure the tree model is updated
             if (guiPackage != null) {
                 guiPackage.getTreeModel().nodeChanged(backup.node);
+                log.info("Notified tree model of node change for element: " + newName);
+                
+                // For selected nodes, apply additional update to ensure visibility
+                if (isSelectedNode) {
+                    // Force a more thorough update for selected nodes
+                    guiPackage.updateCurrentNode();
+                    log.info("Updated current node for selected element: " + newName);
+                }
             }
             
             redoneCount++;
@@ -465,6 +622,24 @@ public class ElementRenamer {
         
         // Clear the undone backup after redoing
         lastUndoneOperation = new ArrayList<>();
+        
+        // After all redos are applied, force a final GUI refresh
+        if (guiPackage != null) {
+            // Update the current GUI component
+            JMeterGUIComponent comp = guiPackage.getCurrentGui();
+            if (comp != null && currentNode != null) {
+                comp.configure(currentNode.getTestElement());
+                log.info("Final GUI component update for current node");
+            }
+            
+            // Ensure the tree is properly updated
+            guiPackage.updateCurrentNode();
+            log.info("Final update of current node");
+            
+            // Repaint the main frame to ensure all visual changes are applied
+            guiPackage.getMainFrame().repaint();
+            log.info("Final repaint of main frame");
+        }
         
         return "Successfully redone " + redoneCount + " element renames.";
     }
