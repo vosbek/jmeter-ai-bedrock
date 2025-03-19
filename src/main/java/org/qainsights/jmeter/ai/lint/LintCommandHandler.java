@@ -98,4 +98,19 @@ public class LintCommandHandler {
             return "Error undoing last rename operation: " + e.getMessage();
         }
     }
+    
+    /**
+     * Redoes the last undone rename operation performed by the ElementRenamer.
+     * 
+     * @return A message indicating the result of the redo operation
+     */
+    public String redoLastUndo() {
+        try {
+            log.info("Redoing last undone rename operation");
+            return ElementRenamer.redoLastUndo();
+        } catch (Exception e) {
+            log.error("Error redoing last undone rename operation", e);
+            return "Error redoing last undone rename operation: " + e.getMessage();
+        }
+    }
 }

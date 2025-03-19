@@ -1,6 +1,7 @@
 package org.qainsights.jmeter.ai.lint;
 
 import org.apache.jmeter.gui.GuiPackage;
+import org.apache.jmeter.gui.JMeterGUIComponent;
 import org.apache.jmeter.gui.tree.JMeterTreeNode;
 import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.property.JMeterProperty;
@@ -26,6 +27,9 @@ public class ElementRenamer {
     
     // Store the original names for undo functionality
     private static List<NameBackup> lastRenameOperation = new ArrayList<>();
+    
+    // Store the undone operations for redo functionality
+    private static List<NameBackup> lastUndoneOperation = new ArrayList<>();
     
     /**
      * Constructor for ElementRenamer.
@@ -302,6 +306,10 @@ public class ElementRenamer {
                 .filter(line -> line.startsWith("Element ") && line.contains(":"))
                 .collect(Collectors.toList());
         
+        // Get the currently selected node for special handling
+        GuiPackage guiPackage = GuiPackage.getInstance();
+        JMeterTreeNode currentNode = guiPackage != null ? guiPackage.getTreeListener().getCurrentNode() : null;
+        
         // Apply suggestions if available
         if (!suggestionLines.isEmpty()) {
             for (int i = 0; i < Math.min(elementsToRename.size(), suggestionLines.size()); i++) {
@@ -329,15 +337,136 @@ public class ElementRenamer {
                     info.node.setName(newName);
                     info.element.setName(newName);
                     info.element.setProperty(TestElement.NAME, newName);
+                    
+                    // Check if this is the currently selected node
+                    boolean isCurrentNode = (currentNode != null && currentNode.equals(info.node));
+                    
+                    // Update the GUI component if this is the currently selected node
+                    if (isCurrentNode && guiPackage != null) {
+                        // Get the current GUI component and update it
+                        JMeterGUIComponent comp = guiPackage.getCurrentGui();
+                        if (comp != null) {
+                            comp.configure(info.element);
+                        }
+                    }
+                    
+                    // Notify the tree model that the node has changed
+                    if (guiPackage != null) {
+                        guiPackage.getTreeModel().nodeChanged(info.node);
+                    }
+                    
                     renamedCount++;
                 }
             }
-            
-            // Refresh the GUI to show the changes
-            GuiPackage.getInstance().getMainFrame().repaint();
         }
         
         return renamedCount;
+    }
+    
+    /**
+     * Undoes the last rename operation.
+     * 
+     * @return A message indicating the result of the undo operation
+     */
+    public static String undoLastRename() {
+        if (lastRenameOperation.isEmpty()) {
+            return "Nothing to undo.";
+        }
+        
+        int restoredCount = 0;
+        
+        // Clear previous undone operation backup before storing new ones
+        lastUndoneOperation.clear();
+        
+        // Get the currently selected node for special handling
+        GuiPackage guiPackage = GuiPackage.getInstance();
+        JMeterTreeNode currentNode = guiPackage != null ? guiPackage.getTreeListener().getCurrentNode() : null;
+        
+        for (NameBackup backup : lastRenameOperation) {
+            // Store the current name before undoing for redo functionality
+            lastUndoneOperation.add(new NameBackup(backup.node, backup.element, backup.node.getName()));
+            
+            backup.node.setName(backup.originalName);
+            backup.element.setName(backup.originalName);
+            backup.element.setProperty(TestElement.NAME, backup.originalName);
+            
+            // Check if this is the currently selected node
+            boolean isCurrentNode = (currentNode != null && currentNode.equals(backup.node));
+            
+            // Update the GUI component if this is the currently selected node
+            if (isCurrentNode && guiPackage != null) {
+                // Get the current GUI component and update it
+                JMeterGUIComponent comp = guiPackage.getCurrentGui();
+                if (comp != null) {
+                    comp.configure(backup.element);
+                }
+            }
+            
+            // Notify the tree model that the node has changed
+            if (guiPackage != null) {
+                guiPackage.getTreeModel().nodeChanged(backup.node);
+            }
+            
+            restoredCount++;
+        }
+        
+        // Clear the backup after undoing
+        lastRenameOperation = new ArrayList<>();
+        
+        return "Successfully restored " + restoredCount + " element names.";
+    }
+    
+    /**
+     * Redoes the last undone rename operation.
+     * 
+     * @return A message indicating the result of the redo operation
+     */
+    public static String redoLastUndo() {
+        if (lastUndoneOperation.isEmpty()) {
+            return "Nothing to redo.";
+        }
+        
+        int redoneCount = 0;
+        
+        // Clear previous rename operation backup before storing new ones
+        lastRenameOperation.clear();
+        
+        // Get the currently selected node for special handling
+        GuiPackage guiPackage = GuiPackage.getInstance();
+        JMeterTreeNode currentNode = guiPackage != null ? guiPackage.getTreeListener().getCurrentNode() : null;
+        
+        for (NameBackup backup : lastUndoneOperation) {
+            // Store the current name before redoing for undo functionality
+            lastRenameOperation.add(new NameBackup(backup.node, backup.element, backup.node.getName()));
+            
+            backup.node.setName(backup.originalName);
+            backup.element.setName(backup.originalName);
+            backup.element.setProperty(TestElement.NAME, backup.originalName);
+            
+            // Check if this is the currently selected node
+            boolean isCurrentNode = (currentNode != null && currentNode.equals(backup.node));
+            
+            // Update the GUI component if this is the currently selected node
+            if (isCurrentNode && guiPackage != null) {
+                // Get the current GUI component and update it
+                JMeterGUIComponent comp = guiPackage.getCurrentGui();
+                if (comp != null) {
+                    comp.configure(backup.element);
+                }
+            }
+            
+            // Notify the tree model that the node has changed
+            if (guiPackage != null) {
+                guiPackage.getTreeModel().nodeChanged(backup.node);
+            }
+            
+            redoneCount++;
+        }
+        
+        // Clear the undone backup after redoing
+        lastUndoneOperation = new ArrayList<>();
+        
+        return "Successfully redone " + redoneCount + " element renames.";
     }
     
     /**
@@ -365,33 +494,5 @@ public class ElementRenamer {
             this.element = element;
             this.originalName = originalName;
         }
-    }
-    
-    /**
-     * Undoes the last rename operation.
-     * 
-     * @return A message indicating the result of the undo operation
-     */
-    public static String undoLastRename() {
-        if (lastRenameOperation.isEmpty()) {
-            return "Nothing to undo.";
-        }
-        
-        int restoredCount = 0;
-        
-        for (NameBackup backup : lastRenameOperation) {
-            backup.node.setName(backup.originalName);
-            backup.element.setName(backup.originalName);
-            backup.element.setProperty(TestElement.NAME, backup.originalName);
-            restoredCount++;
-        }
-        
-        // Clear the backup after undoing
-        lastRenameOperation = new ArrayList<>();
-        
-        // Refresh the GUI to show the changes
-        GuiPackage.getInstance().getMainFrame().repaint();
-        
-        return "Successfully restored " + restoredCount + " element names.";
     }
 }

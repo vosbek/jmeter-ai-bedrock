@@ -129,16 +129,20 @@ public class AiChatPanel extends JPanel {
         
         // Define the key stroke based on the platform - using modern API instead of deprecated Event.META_MASK
         KeyStroke undoKeyStroke;
+        KeyStroke redoKeyStroke;
         String osName = System.getProperty("os.name").toLowerCase();
         if (osName.contains("mac")) {
-            // Mac (Cmd+Z)
+            // Mac (Cmd+Z for undo, Cmd+Shift+Z for redo)
             undoKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_Z, InputEvent.META_DOWN_MASK);
+            redoKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_Z, InputEvent.META_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK);
         } else if (osName.contains("linux")) {
-            // Linux (Ctrl+Z)
+            // Linux (Ctrl+Z for undo, Ctrl+Shift+Z for redo)
             undoKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_Z, InputEvent.CTRL_DOWN_MASK);
+            redoKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_Z, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK);
         } else {
-            // Windows (Ctrl+Z)
+            // Windows (Ctrl+Z for undo, Ctrl+Shift+Z for redo)
             undoKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_Z, InputEvent.CTRL_DOWN_MASK);
+            redoKeyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_Z, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK);
         }
         
         inputMap.put(undoKeyStroke, "undoLintAction");
@@ -146,6 +150,15 @@ public class AiChatPanel extends JPanel {
             @Override
             public void actionPerformed(ActionEvent e) {
                 undoLastRename();
+            }
+        });
+        
+        // Add keyboard shortcut for redo
+        inputMap.put(redoKeyStroke, "redoLintAction");
+        actionMap.put("redoLintAction", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                redoLastUndo();
             }
         });
         
@@ -622,8 +635,6 @@ public class AiChatPanel extends JPanel {
     private void handleCodeCommand(String message) {
         log.info("Processing @code command");
         
-        // Use the message passed from the sendMessage method
-        
         try {
             // Add user message to chat
             messageProcessor.appendMessage(chatArea.getStyledDocument(), message, Color.BLACK, true);
@@ -1031,6 +1042,44 @@ public class AiChatPanel extends JPanel {
                     try {
                         messageProcessor.appendMessage(chatArea.getStyledDocument(),
                                 "Error undoing rename operation: " + e.getMessage(), Color.RED, false);
+                    } catch (BadLocationException ex) {
+                        log.error("Error displaying error message", ex);
+                    }
+                }
+            }
+        }.execute();
+    }
+    
+    /**
+     * Redoes the last undone rename operation performed by the ElementRenamer.
+     */
+    private void redoLastUndo() {
+        // Create a SwingWorker to process the redo in the background
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                // Create a LintCommandHandler and process the redo
+                LintCommandHandler lintHandler = new LintCommandHandler(claudeService);
+                return lintHandler.redoLastUndo();
+            }
+            
+            @Override
+            protected void done() {
+                try {
+                    // Get the result and display it
+                    String result = get();
+                    // Display the result in the chat area
+                    try {
+                        messageProcessor.appendMessage(chatArea.getStyledDocument(), result, new Color(0, 51, 102), false);
+                    } catch (BadLocationException ex) {
+                        log.error("Error displaying redo result", ex);
+                    }
+                } catch (InterruptedException | ExecutionException e) {
+                    log.error("Error redoing rename operation", e);
+                    // Display error message
+                    try {
+                        messageProcessor.appendMessage(chatArea.getStyledDocument(),
+                                "Error redoing rename operation: " + e.getMessage(), Color.RED, false);
                     } catch (BadLocationException ex) {
                         log.error("Error displaying error message", ex);
                     }
