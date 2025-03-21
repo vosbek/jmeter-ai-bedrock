@@ -12,6 +12,9 @@ This plugin provides a simple way to chat with AI in JMeter. Feather Wand serves
 - Get suggestions for JMeter elements based on your needs
 - Ask questions about JMeter functionality and best practices
 - Use `@this` command to get detailed information about the currently selected element
+- Use `@lint` command to automatically rename elements in your test plan for better organization and readability
+- Use `@optimize` command to get optimization recommendations for the currently selected element in your test plan
+- Use `@code` command to extract code blocks from AI responses and insert them directly into JSR223 components
 - Customize AI behavior through configuration properties
 
 ## ⚠️ Disclaimer and Best Practices
@@ -78,6 +81,49 @@ For example, if you have an HTTP Request sampler selected, the optimization reco
 
 Simply select an element in your test plan and type `@optimize` or `optimize` in the chat to receive tailored optimization recommendations.
 
+### 💻 @code Command
+
+Use the `@code` command to extract code blocks from AI responses and insert them directly into JSR223 components. This feature streamlines the process of implementing scripts suggested by the AI:
+
+1. **How to Use**:
+   - Select a JSR223 component in your test plan
+   - Ask the AI for a script (e.g., "Write a JSR223 script to extract values from JSON response")
+   - When the AI responds with code blocks, type `@code` to extract and insert the code
+
+2. **Benefits**:
+   - Eliminates manual copy-pasting of code
+   - Preserves proper formatting and indentation
+   - Automatically extracts only the code blocks, ignoring explanatory text
+   - Maintains the original AI response in the chat for reference
+
+This feature is particularly useful when implementing complex scripts or when you need to quickly apply the AI's code suggestions to your test plan.
+
+### 🧹 @lint Command
+
+Use the `@lint` command to automatically rename elements in your test plan for better organization and readability:
+
+1. **How to Use**:
+   - Type `@lint` in the chat to analyze your test plan structure
+   - The AI will suggest better names for elements based on their function and context
+   - Review the suggestions and confirm to apply the changes
+   - Use the undo/redo buttons to revert or reapply changes if needed
+   - e.g. `@lint rename the elements based on the URL` or `@lint rename the elements in pascal case`
+
+2. **Benefits**:
+   - Improves test plan readability and maintenance
+   - Applies consistent naming conventions across your test plan
+   - Helps identify elements with generic or unclear names
+   - Makes test plans more understandable for team members
+   - Undo it if you don't like the changes
+   - Redo it if you like the changes
+
+3. **Best Practices**:
+   - Run `@lint` after creating a new test plan to establish good naming from the start
+   - Use it before sharing test plans with team members
+   - Apply it to imported test plans to make them conform to your naming standards
+
+This feature is particularly valuable for large test plans or when working in teams where consistent naming is essential for collaboration.
+
 ## 🗝️ How to get an Anthropic API key?
 
 1. Go to [Anthropic API](https://www.anthropic.com/) website
@@ -85,3 +131,11 @@ Simply select an element in your test plan and type `@optimize` or `optimize` in
 3. Create a new API key
 4. Copy the API key and paste it into the `anthropic.api.key` property in your `jmeter.properties` file
 5. For more information about the API key, visit the [API Key documentation](https://www.anthropic.com/api)
+
+## 🪲Report Issues
+
+If you encounter any issues or have suggestions for improvement, please open an issue on the [GitHub repository](https://github.com/qainsights/jmeter-ai).
+
+## ⛳️ Roadmap
+
+Please check the [roadmap](https://github.com/users/QAInsights/projects/12) for more details.
