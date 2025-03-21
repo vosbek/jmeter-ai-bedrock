@@ -9,9 +9,13 @@ import javax.swing.AbstractAction;
 import javax.swing.ActionMap;
 import javax.swing.InputMap;
 import javax.swing.KeyStroke;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+
+import org.apache.jorphan.gui.JMeterUIDefaults;
 
 import org.apache.jmeter.gui.GuiPackage;
 import org.apache.jmeter.gui.tree.JMeterTreeNode;
@@ -34,7 +38,7 @@ import org.slf4j.LoggerFactory;
  * This class has been refactored to improve composability, readability, and reusability
  * by delegating responsibilities to specialized component classes.
  */
-public class AiChatPanel extends JPanel {
+public class AiChatPanel extends JPanel implements PropertyChangeListener {
     private static final Logger log = LoggerFactory.getLogger(AiChatPanel.class);
     
     // UI components (kept for backward compatibility)
@@ -46,6 +50,10 @@ public class AiChatPanel extends JPanel {
     private ClaudeService claudeService;
     private TreeNavigationButtons treeNavigationButtons;
     private JPanel navigationPanel; // Added field for navigation panel
+    
+    // Store the base font sizes for scaling
+    private float baseChatFontSize;
+    private float baseMessageFontSize;
     
     // Component managers
     private final MessageProcessor messageProcessor;
@@ -63,6 +71,9 @@ public class AiChatPanel extends JPanel {
         treeNavigationButtons = new TreeNavigationButtons();
         treeNavigationButtons.setUpButtonActionListener();
         treeNavigationButtons.setDownButtonActionListener();
+        
+        // Register for UI refresh events (for zoom functionality)
+        UIManager.addPropertyChangeListener(this);
         
         conversationHistory = new ArrayList<>();
         
@@ -116,6 +127,9 @@ public class AiChatPanel extends JPanel {
         Font defaultFont = UIManager.getFont("TextField.font");
         Font largerFont = new Font(defaultFont.getFamily(), defaultFont.getStyle(), defaultFont.getSize() + 2);
         chatArea.setFont(largerFont);
+        
+        // Store the base font size for scaling
+        baseChatFontSize = largerFont.getSize2D();
         
         // Set default paragraph attributes for left alignment
         StyledDocument doc = chatArea.getStyledDocument();
@@ -216,6 +230,9 @@ public class AiChatPanel extends JPanel {
         messageField.setLineWrap(true);
         messageField.setWrapStyleWord(true);
         messageField.setFont(largerFont);
+        
+        // Store the base font size for scaling
+        baseMessageFontSize = largerFont.getSize2D();
         messageField.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Color.LIGHT_GRAY),
                 BorderFactory.createEmptyBorder(5, 5, 5, 5)));
@@ -1086,5 +1103,44 @@ public class AiChatPanel extends JPanel {
                 }
             }
         }.execute();
+    }
+    
+    /**
+     * Cleans up resources when the panel is no longer needed.
+     */
+    public void cleanup() {
+        // Unregister property change listener
+        UIManager.removePropertyChangeListener(this);
+    }
+    
+    /**
+     * Updates the font sizes of chat components based on JMeter's current scale factor
+     */
+    private void updateFontSizes() {
+        float scale = JMeterUIDefaults.INSTANCE.getScale();
+        
+        // Update chat area font
+        Font currentChatFont = chatArea.getFont();
+        float newChatSize = baseChatFontSize * scale;
+        Font newChatFont = currentChatFont.deriveFont(newChatSize);
+        chatArea.setFont(newChatFont);
+        
+        // Update message field font
+        Font currentMessageFont = messageField.getFont();
+        float newMessageSize = baseMessageFontSize * scale;
+        Font newMessageFont = currentMessageFont.deriveFont(newMessageSize);
+        messageField.setFont(newMessageFont);
+    }
+    
+    /**
+     * Handles property change events, specifically for UI refresh events triggered by zoom actions
+     */
+    @Override
+    public void propertyChange(PropertyChangeEvent evt) {
+        // Check if this is a UI refresh event
+        if ("lookAndFeel".equals(evt.getPropertyName())) {
+            // Update font sizes based on the current scale
+            updateFontSizes();
+        }
     }
 }
