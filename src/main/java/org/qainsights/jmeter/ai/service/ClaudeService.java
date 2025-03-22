@@ -22,7 +22,6 @@ public class ClaudeService implements AiService {
     private float temperature;
     private final AnthropicClient client;
     private String systemPrompt;
-    private boolean systemPromptInitialized = false;
     private long maxTokens;
 
     // Default system prompt to focus responses on JMeter
@@ -118,7 +117,7 @@ public class ClaudeService implements AiService {
 
         // Get default model from properties or use SONNET if not specified
         this.currentModelId = AiConfig.getProperty("claude.default.model", "claude-3-sonnet-20240229");
-        this.temperature = Float.parseFloat(AiConfig.getProperty("claude.temperature", "0.7"));
+        this.temperature = Float.parseFloat(AiConfig.getProperty("claude.temperature", "0.5"));
         this.maxTokens = Long.parseLong(AiConfig.getProperty("claude.max.tokens", "1024"));
         
         // Load system prompt from properties or use default
