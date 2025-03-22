@@ -1294,43 +1294,6 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
     }
     
     /**
-     * Redoes the last undone wrap operation performed by the WrapCommandHandler.
-     */
-    private void redoLastWrap() {
-        // Create a SwingWorker to process the redo in the background
-        new SwingWorker<String, Void>() {
-            @Override
-            protected String doInBackground() throws Exception {
-                // Get the WrapUndoRedoHandler instance and process the redo
-                return WrapUndoRedoHandler.getInstance().redoLastUndo();
-            }
-            
-            @Override
-            protected void done() {
-                try {
-                    // Get the result and display it
-                    String result = get();
-                    // Display the result in the chat area
-                    try {
-                        messageProcessor.appendMessage(chatArea.getStyledDocument(), result, new Color(0, 51, 102), false);
-                    } catch (BadLocationException ex) {
-                        log.error("Error displaying wrap redo result", ex);
-                    }
-                } catch (InterruptedException | ExecutionException e) {
-                    log.error("Error redoing wrap operation", e);
-                    // Display error message
-                    try {
-                        messageProcessor.appendMessage(chatArea.getStyledDocument(),
-                                "Error redoing wrap operation: " + e.getMessage(), Color.RED, false);
-                    } catch (BadLocationException ex) {
-                        log.error("Error displaying error message", ex);
-                    }
-                }
-            }
-        }.execute();
-    }
-    
-    /**
      * Cleans up resources when the panel is no longer needed.
      */
     public void cleanup() {
