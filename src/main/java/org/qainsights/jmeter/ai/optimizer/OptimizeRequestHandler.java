@@ -1,7 +1,7 @@
 package org.qainsights.jmeter.ai.optimizer;
 
 import org.qainsights.jmeter.ai.utils.JMeterElementManager;
-import org.qainsights.jmeter.ai.service.ClaudeService;
+import org.qainsights.jmeter.ai.service.AiService;
 import org.apache.jmeter.gui.GuiPackage;
 import org.apache.jmeter.gui.tree.JMeterTreeNode;
 import org.apache.jmeter.testelement.TestElement;
@@ -22,8 +22,7 @@ public class OptimizeRequestHandler {
     private static final Pattern OPTIMIZE_ELEMENT_PATTERN = Pattern.compile(
             "(?i).*\\b(optimize|improve|enhance)\\b.*");
 
-    // AI service for getting optimization recommendations
-    private static ClaudeService aiService;
+    // No static AI service field needed as it will be passed as a parameter
 
     /**
      * Processes a user message to determine if it's requesting to optimize the
@@ -79,17 +78,19 @@ public class OptimizeRequestHandler {
             return "I couldn't optimize the element because the test plan structure is not available.";
         }
 
-        // Analyze and optimize the selected element directly
-        return analyzeAndOptimizeSelectedElement();
+        // We need an AI service to analyze the element, but we don't have one here
+        // The caller should use the analyzeAndOptimizeSelectedElement method directly
+        return "Please use the @optimize command in the chat panel to get optimization suggestions.";
     }
 
     /**
      * Analyzes the currently selected element and provides optimization
      * suggestions.
      * 
+     * @param aiService The AI service to use for generating optimization suggestions
      * @return A response message with optimization suggestions
      */
-    public static String analyzeAndOptimizeSelectedElement() {
+    public static String analyzeAndOptimizeSelectedElement(AiService aiService) {
         GuiPackage guiPackage = GuiPackage.getInstance();
         if (guiPackage == null) {
             log.error("GuiPackage is null, cannot optimize selected element");
@@ -112,9 +113,10 @@ public class OptimizeRequestHandler {
 
         log.info("Starting optimization analysis for selected element: " + element.getName());
 
-        // Initialize AI service if not already initialized
+        // We now expect the AiService to be passed in from the caller
         if (aiService == null) {
-            aiService = new ClaudeService();
+            log.error("AI service not initialized");
+            return "I couldn't optimize because the AI service is not available. Please try again later.";
         }
 
         try {
@@ -190,8 +192,8 @@ public class OptimizeRequestHandler {
 
             log.info("Sending selected element to AI for analysis");
 
-            // Get AI recommendations for this element - direct call
-            String elementRecommendations = aiService.generateDirectResponse(elementPrompt.toString());
+            // Get AI recommendations for this element
+            String elementRecommendations = aiService.generateResponse(java.util.Collections.singletonList(elementPrompt.toString()));
 
             // Format the response
             StringBuilder report = new StringBuilder();

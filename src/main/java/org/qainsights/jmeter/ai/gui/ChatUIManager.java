@@ -7,13 +7,16 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.function.Consumer;
 import java.util.List;
+import java.util.ArrayList;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.qainsights.jmeter.ai.service.ClaudeService;
+import org.qainsights.jmeter.ai.service.OpenAiService;
 import org.qainsights.jmeter.ai.utils.Models;
 import com.anthropic.models.ModelInfo;
+import com.anthropic.models.ModelListPage;
 
 /**
  * Manages the UI components of the chat interface.
@@ -41,9 +44,10 @@ public class ChatUIManager {
      * @param newChatAction The action to perform when the new chat button is clicked
      * @param modelSelectionAction The action to perform when a model is selected
      * @param claudeService The Claude service to use for model information
+     * @param openAiService The OpenAI service to use for model information
      */
     public ChatUIManager(Runnable sendMessageAction, Runnable newChatAction, 
-                         Consumer<ModelInfo> modelSelectionAction, ClaudeService claudeService) {
+                         Consumer<ModelInfo> modelSelectionAction, ClaudeService claudeService, OpenAiService openAiService) {
         // Initialize navigation buttons
         treeNavigationButtons = new TreeNavigationButtons();
         treeNavigationButtons.setUpButtonActionListener();
@@ -65,7 +69,7 @@ public class ChatUIManager {
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
         
         // Create model selector
-        modelSelector = createModelSelector(claudeService, modelSelectionAction);
+        modelSelector = createModelSelector(claudeService, openAiService, modelSelectionAction);
         JPanel modelPanel = createModelPanel(modelSelector);
         bottomPanel.add(modelPanel, BorderLayout.NORTH);
         
@@ -170,7 +174,7 @@ public class ChatUIManager {
      * @param modelSelectionAction The action to perform when a model is selected
      * @return The configured model selector
      */
-    private JComboBox<ModelInfo> createModelSelector(ClaudeService claudeService, Consumer<ModelInfo> modelSelectionAction) {
+    private JComboBox<ModelInfo> createModelSelector(ClaudeService claudeService, OpenAiService openAiService, Consumer<ModelInfo> modelSelectionAction) {
         JComboBox<ModelInfo> selector = new JComboBox<>();
         selector.addItem(null); // Add empty item while loading
         selector.setRenderer(new DefaultListCellRenderer() {
@@ -190,7 +194,60 @@ public class ChatUIManager {
         new SwingWorker<List<ModelInfo>, Void>() {
             @Override
             protected List<ModelInfo> doInBackground() {
-                return Models.getModels(claudeService.getClient()).data();
+                // Get models from both services
+                List<ModelInfo> models = new ArrayList<>();
+                
+                // Variable to store Anthropic models for reference
+                ModelListPage anthropicModels = null;
+                com.openai.models.ModelListPage openAiModels = null;
+                
+                try {
+                    // Get Anthropic models
+                    anthropicModels = Models.getAnthropicModels(claudeService.getClient());
+                    if (anthropicModels != null && anthropicModels.data() != null) {
+                        models.addAll(anthropicModels.data());
+                        log.info("Added {} Anthropic models", anthropicModels.data().size());
+                    }
+                } catch (Exception e) {
+                    log.error("Error loading Anthropic models: {}", e.getMessage(), e);
+                }
+                
+                // Add OpenAI models
+                try {
+                    openAiModels = Models.getOpenAiModels(openAiService.getClient());
+                    if (openAiModels != null && openAiModels.data() != null) {
+                        // Convert OpenAI models to Anthropic ModelInfo objects
+                        for (com.openai.models.Model openAiModel : openAiModels.data()) {
+                            // Only include GPT models and filter out specific model types
+                            if (openAiModel.id().startsWith("gpt") && 
+                                !openAiModel.id().contains("audio") && 
+                                !openAiModel.id().contains("tts") && 
+                                !openAiModel.id().contains("whisper") && 
+                                !openAiModel.id().contains("davinci") && 
+                                !openAiModel.id().contains("search") && 
+                                !openAiModel.id().contains("transcribe") && 
+                                !openAiModel.id().contains("realtime") && 
+                                !openAiModel.id().contains("instruct")) {
+                                
+                                try {
+                                    // Create a ModelInfo for each OpenAI model
+                                    ModelInfo modelInfo = ModelInfo.builder()
+                                        .id("openai:" + openAiModel.id())
+                                        .build();
+                                    
+                                    models.add(modelInfo);
+                                    log.debug("Added OpenAI model to selector: {}", openAiModel.id());
+                                } catch (Exception e) {
+                                    log.warn("Could not create ModelInfo for {}: {}", openAiModel.id(), e.getMessage());
+                                }
+                            }
+                        }
+                        log.info("Added OpenAI models to selector");
+                    }
+                } catch (Exception e) {
+                    log.error("Error loading OpenAI models: {}", e.getMessage(), e);
+                }
+                return models;
             }
             
             @Override

@@ -5,7 +5,7 @@ import org.apache.jmeter.gui.JMeterGUIComponent;
 import org.apache.jmeter.gui.tree.JMeterTreeNode;
 import org.apache.jmeter.testbeans.gui.TestBeanGUI;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
-import org.qainsights.jmeter.ai.service.ClaudeService;
+import org.qainsights.jmeter.ai.service.AiService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +25,7 @@ public class CodeCommandHandler {
     private static String lastSelectedText = null;
     private static RSyntaxTextArea lastScriptEditor = null;
     private static final Pattern CODE_COMMAND_PATTERN = Pattern.compile("@code(?:\\s+(.+))?");
-    private final ClaudeService claudeService;
+    private final AiService aiService;
     private boolean isProcessing = false;
     
     /**
@@ -64,8 +64,8 @@ public class CodeCommandHandler {
      * 
      * @param claudeService The Claude service to use for AI processing
      */
-    public CodeCommandHandler(ClaudeService claudeService) {
-        this.claudeService = claudeService;
+    public CodeCommandHandler(AiService aiService) {
+        this.aiService = aiService;
     }
 
     /**
@@ -168,7 +168,7 @@ public class CodeCommandHandler {
                             "Include the improved code wrapped in ```code blocks``` so it can be automatically extracted.";
             
             // Send the prompt to the AI
-            String response = claudeService.sendMessage(prompt);
+            String response = aiService.generateResponse(java.util.Collections.singletonList(prompt));
             if (response == null || response.isEmpty()) {
                 log.error("Empty response from AI service");
                 return null;

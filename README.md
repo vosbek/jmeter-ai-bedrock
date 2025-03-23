@@ -8,7 +8,7 @@ This plugin provides a simple way to chat with AI in JMeter. Feather Wand serves
 
 ## ✨ Features
 
-- Chat with AI directly within JMeter
+- Chat with AI directly within JMeter using either Claude or OpenAI models
 - Get suggestions for JMeter elements based on your needs
 - Ask questions about JMeter functionality and best practices
 - Use `@this` command to get detailed information about the currently selected element
@@ -17,6 +17,26 @@ This plugin provides a simple way to chat with AI in JMeter. Feather Wand serves
 - Use `@code` command to extract code blocks from AI responses and insert them directly into JSR223 components
 - Use `@wrap` command to intelligently group HTTP samplers under Transaction Controllers for better organization and reporting
 - Customize AI behavior through configuration properties
+- Switch between Claude and OpenAI models based on your preference or specific needs
+
+## 📥 Installation
+
+### Plugins Manager (Recommended)
+
+1. Install the JMeter Plugins Manager from [Plugins Manager](https://jmeter-plugins.org/).
+2. Restart JMeter.
+3. Launch Plugins Manager.
+4. Search for `feather wand` under `Available Plugins` tab.
+5. Select it and click `Apply Changes and Restart JMeter` button.
+
+### Manual Installation (Alternative)
+
+1. Download the latest release JAR file from the [Releases](https://github.com/QAInsights/jmeter-ai/releases) page.
+2. Place the JAR file in the `lib/ext` directory of your JMeter installation.
+3. Copy the contents of `jmeter-ai-sample.properties` into your `jmeter.properties` file (located in the `bin` directory of your JMeter installation) or into your `user.properties` file.
+4. Configure your API key(s) for Anthropic and/or OpenAI in the properties file.
+5. Restart JMeter.
+6. The Feather Wand plugin will appear as a new component in the right-click menu under "Add" > "Non-Test Elements" > "Feather Wand".
 
 ## ⚠️ Disclaimer and Best Practices
 
@@ -27,7 +47,7 @@ While the Feather Wand plugin aims to provide helpful assistance, please keep th
 - **Test Verification**: After making changes based on AI recommendations, thoroughly verify your test plan functionality in a controlled environment before running it against production systems.
 - **Performance Impact**: Some AI-suggested configurations may impact test performance. Monitor resource usage when implementing new configurations.
 - **Security Considerations**: Do not share sensitive information (credentials, proprietary code, etc.) in your conversations with the AI.
-- **API Costs**: Be aware that using the Claude API incurs costs based on token usage. The plugin is designed to minimize token usage, but extensive use will affect your Anthropic account billing.
+- **API Costs**: Be aware that using the Claude API or OpenAI API incurs costs based on token usage. The plugin is designed to minimize token usage, but excessive use may result in higher costs.
 
 This plugin is provided as a tool to assist JMeter users, but the ultimate responsibility for test plan design, implementation, and execution remains with the user.
 
@@ -36,6 +56,8 @@ This plugin is provided as a tool to assist JMeter users, but the ultimate respo
 The Feather Wand plugin can be configured through JMeter properties. Copy the `jmeter-ai-sample.properties` file content to your `jmeter.properties` or `user.properties` file and modify the properties as needed.
 
 ### 🔧 Available Configuration Options
+
+#### Anthropic (Claude) Configuration
 
 | Property                  | Description                                                  | Default Value              |
 | ------------------------- | ------------------------------------------------------------ | -------------------------- |
@@ -47,9 +69,23 @@ The Feather Wand plugin can be configured through JMeter properties. Copy the `j
 | `claude.system.prompt`    | System prompt that guides Claude's responses                 | See sample properties file |
 | `anthropic.log.level`     | Logging level for Anthropic API requests ("info" or "debug") | Empty (disabled)           |
 
+#### OpenAI Configuration
+
+| Property                  | Description                                                  | Default Value              |
+| ------------------------- | ------------------------------------------------------------ | -------------------------- |
+| `openai.api.key`          | Your OpenAI API key                                          | Required                   |
+| `openai.default.model`    | Default OpenAI model to use                                  | gpt-4o                     |
+| `openai.temperature`      | Temperature setting (0.0-1.0)                                | 0.5                        |
+| `openai.max.tokens`       | Maximum tokens for AI responses                              | 1024                       |
+| `openai.max.history.size` | Maximum conversation history size                            | 10                         |
+| `openai.system.prompt`    | System prompt that guides OpenAI's responses                 | See sample properties file |
+| `openai.log.level`        | Logging level for OpenAI API requests ("INFO" or "DEBUG")    | Empty (disabled)           |
+
 ### 💬 Customizing the System Prompt
 
-The system prompt defines how Claude responds to your queries. You can customize this in the properties file to focus on specific aspects of JMeter or add your own guidelines. The default prompt is designed to provide helpful, JMeter-specific responses.
+The system prompt defines how the AI (Claude or OpenAI) responds to your queries. You can customize this in the properties file to focus on specific aspects of JMeter or add your own guidelines. 
+
+Both `claude.system.prompt` and `openai.system.prompt` can be configured separately in the properties file. The default prompts are designed to provide helpful, JMeter-specific responses tailored to each AI model's capabilities.
 
 ## 🔍 Special Commands
 
@@ -151,7 +187,11 @@ Use the `@wrap` command to intelligently group HTTP samplers under Transaction C
 
 This feature is especially useful for imported or recorded test plans that contain many individual HTTP samplers without proper organization.
 
-## 🗝️ How to get an Anthropic API key?
+## 🗝️ API Configuration
+
+Feather Wand supports both Anthropic (Claude) and OpenAI APIs. You can configure either or both in your properties file.
+
+### Anthropic API (Claude)
 
 1. Go to [Anthropic API](https://www.anthropic.com/) website
 2. Sign up for an account
@@ -159,7 +199,31 @@ This feature is especially useful for imported or recorded test plans that conta
 4. Copy the API key and paste it into the `anthropic.api.key` property in your `jmeter.properties` file
 5. For more information about the API key, visit the [API Key documentation](https://www.anthropic.com/api)
 
-## 🪲Report Issues
+### OpenAI API
+
+1. Go to [OpenAI API](https://platform.openai.com/) website
+2. Sign up for an account
+3. Create a new API key
+4. Copy the API key and paste it into the `openai.api.key` property in your `jmeter.properties` file
+5. For more information about the API key, visit the [API Key documentation](https://platform.openai.com/docs/api-reference)
+
+### Model Selection
+
+Feather Wand automatically filters available models to show only chat-compatible models. By default, it excludes audio, TTS, transcription, and other non-chat models. You can select your preferred model from the dropdown in the UI, or set default models in the properties file:
+
+- For Claude: `claude.default.model` (e.g., `claude-3-7-sonnet-20250219`)
+- For OpenAI: `openai.default.model` (e.g., `gpt-4o`)
+
+### Model Filtering
+
+Feather Wand applies intelligent filtering to the available models to ensure you only see relevant chat models in the dropdown:
+
+- **OpenAI Models**: Filters out audio, TTS, whisper, davinci, search, transcribe, realtime, and instruct models to show only GPT chat models.
+- **Claude Models**: Shows only the latest available Claude models.
+
+This filtering ensures that you only see models that are compatible with the chat interface and appropriate for JMeter-related tasks.
+
+## 🪲 Report Issues
 
 If you encounter any issues or have suggestions for improvement, please open an issue on the [GitHub repository](https://github.com/qainsights/jmeter-ai).
 

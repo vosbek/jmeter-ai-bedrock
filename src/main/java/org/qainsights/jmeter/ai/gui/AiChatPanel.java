@@ -5,10 +5,6 @@ import javax.swing.text.*;
 import javax.swing.tree.*;
 import java.awt.*;
 import java.awt.event.*;
-import javax.swing.AbstractAction;
-import javax.swing.ActionMap;
-import javax.swing.InputMap;
-import javax.swing.KeyStroke;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
@@ -30,8 +26,11 @@ import org.qainsights.jmeter.ai.optimizer.OptimizeRequestHandler;
 import org.qainsights.jmeter.ai.lint.LintCommandHandler;
 import org.qainsights.jmeter.ai.wrap.WrapCommandHandler;
 import org.qainsights.jmeter.ai.wrap.WrapUndoRedoHandler;
+import org.qainsights.jmeter.ai.service.OpenAiService;
+import org.qainsights.jmeter.ai.service.AiService;
 
 import com.anthropic.models.ModelInfo;
+import com.anthropic.models.ModelListPage;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,9 +47,10 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
     private JTextPane chatArea;
     private JTextArea messageField;
     private JButton sendButton;
-    private JComboBox<ModelInfo> modelSelector;
+    private JComboBox<String> modelSelector;
     private List<String> conversationHistory;
     private ClaudeService claudeService;
+    private OpenAiService openAiService;
     private TreeNavigationButtons treeNavigationButtons;
     private JPanel navigationPanel; // Added field for navigation panel
     
@@ -76,6 +76,7 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
     public AiChatPanel() {
         // Initialize services and utilities
         claudeService = new ClaudeService();
+        openAiService = new OpenAiService();
         messageProcessor = new MessageProcessor();
         
         // Initialize tree navigation buttons with action listeners
@@ -105,8 +106,7 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
                     return super.getListCellRendererComponent(list, "Loading models...", index, isSelected,
                             cellHasFocus);
                 }
-                ModelInfo model = (ModelInfo) value;
-                return super.getListCellRendererComponent(list, model.id(), index, isSelected, cellHasFocus);
+                return super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
             }
         });
         
@@ -115,11 +115,12 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
         
         // Add a listener to log model changes
         modelSelector.addActionListener(e -> {
-            ModelInfo selectedModel = (ModelInfo) modelSelector.getSelectedItem();
+            String selectedModel = (String) modelSelector.getSelectedItem();
             if (selectedModel != null) {
-                log.info("Model selected from dropdown: {}", selectedModel.id());
+                log.info("Model selected from dropdown: {}", selectedModel);
                 // Immediately set the model in the service
-                claudeService.setModel(selectedModel.id());
+                claudeService.setModel(selectedModel);
+                openAiService.setModel(selectedModel);
             }
         });
         
@@ -382,41 +383,86 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
      * Loads the available models in the background.
      */
     private void loadModelsInBackground() {
-        new SwingWorker<List<ModelInfo>, Void>() {
+        new SwingWorker<List<String>, Void>() {
             @Override
-            protected List<ModelInfo> doInBackground() {
-                return Models.getModels(claudeService.getClient()).data();
+            protected List<String> doInBackground() {
+                // Get models from both services
+                List<String> allModels = new ArrayList<>();
+                
+                // Get Anthropic models
+                try {
+                    ModelListPage anthropicModels = Models.getAnthropicModels(claudeService.getClient());
+                    if (anthropicModels != null && anthropicModels.data() != null) {
+                        for (ModelInfo model : anthropicModels.data()) {
+                            allModels.add(model.id());
+                            log.debug("Added Anthropic model: {}", model.id());
+                        }
+                        log.info("Added {} Anthropic models", anthropicModels.data().size());
+                    }
+                } catch (Exception e) {
+                    log.error("Error loading Anthropic models: {}", e.getMessage(), e);
+                }
+                
+                // Add OpenAI models
+                try {
+                    com.openai.models.ModelListPage openAiModels = Models.getOpenAiModels(openAiService.getClient());
+                    if (openAiModels != null && openAiModels.data() != null) {
+                        // Convert OpenAI models to string IDs
+                        for (com.openai.models.Model openAiModel : openAiModels.data()) {
+                            // Only include GPT models and filter out specific model types
+                            if (openAiModel.id().startsWith("gpt") && 
+                                !openAiModel.id().contains("audio") && 
+                                !openAiModel.id().contains("tts") && 
+                                !openAiModel.id().contains("whisper") && 
+                                !openAiModel.id().contains("davinci") && 
+                                !openAiModel.id().contains("search") && 
+                                !openAiModel.id().contains("transcribe") && 
+                                !openAiModel.id().contains("realtime") && 
+                                !openAiModel.id().contains("instruct")) {
+                                
+                                String modelId = "openai:" + openAiModel.id();
+                                allModels.add(modelId);
+                                log.debug("Added OpenAI model to selector: {}", openAiModel.id());
+                            }
+                        }
+                        log.info("Added OpenAI models to selector");
+                    }
+                } catch (Exception e) {
+                    log.error("Error adding OpenAI models: {}", e.getMessage(), e);
+                }
+                
+                return allModels;
             }
             
             @Override
             protected void done() {
                 try {
-                    List<ModelInfo> models = get();
+                    List<String> models = get();
                     modelSelector.removeAllItems();
                     
                     // Get the default model ID
                     String defaultModelId = claudeService.getCurrentModel();
                     log.info("Default model ID: {}", defaultModelId);
                     
-                    ModelInfo defaultModelInfo = null;
+                    String defaultModel = null;
                     
-                    for (ModelInfo model : models) {
+                    for (String model : models) {
                         modelSelector.addItem(model);
-                        if (model.id().equals(defaultModelId)) {
-                            defaultModelInfo = model;
+                        if (model.equals(defaultModelId)) {
+                            defaultModel = model;
                         }
                     }
                     
                     // Select the default model if found
-                    if (defaultModelInfo != null) {
-                        modelSelector.setSelectedItem(defaultModelInfo);
-                        log.info("Selected default model: {}", defaultModelInfo.id());
+                    if (defaultModel != null) {
+                        modelSelector.setSelectedItem(defaultModel);
+                        log.info("Selected default model: {}", defaultModel);
                     } else if (modelSelector.getItemCount() > 0) {
                         // If default model not found, select the first one
                         modelSelector.setSelectedIndex(0);
-                        ModelInfo selectedModel = (ModelInfo) modelSelector.getSelectedItem();
-                        claudeService.setModel(selectedModel.id());
-                        log.info("Default model not found, selected first available: {}", selectedModel.id());
+                        String selectedModel = (String) modelSelector.getSelectedItem();
+                        claudeService.setModel(selectedModel);
+                        log.info("Default model not found, selected first available: {}", selectedModel);
                     }
                 } catch (Exception e) {
                     log.error("Failed to load models", e);
@@ -679,7 +725,21 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
             @Override
             protected String doInBackground() throws Exception {
                 // Get optimization suggestions from OptimizeRequestHandler
-                return OptimizeRequestHandler.analyzeAndOptimizeSelectedElement();
+                // Use the appropriate AI service based on the selected model
+                String selectedModel = (String) modelSelector.getSelectedItem();
+                AiService serviceToUse;
+                
+                if (selectedModel.startsWith("openai:")) {
+                    // Use OpenAI service
+                    serviceToUse = openAiService;
+                    log.info("Using OpenAI service for optimization");
+                } else {
+                    // Use Claude service
+                    serviceToUse = claudeService;
+                    log.info("Using Claude service for optimization");
+                }
+                
+                return OptimizeRequestHandler.analyzeAndOptimizeSelectedElement(serviceToUse);
             }
             
             @Override
@@ -749,8 +809,22 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
         new SwingWorker<String, Void>() {
             @Override
             protected String doInBackground() throws Exception {
+                // Get the currently selected model
+                String selectedModel = (String) modelSelector.getSelectedItem();
+                if (selectedModel == null) {
+                    return "Please select a model first.";
+                }
+                
+                // Determine which service to use based on the model ID
+                AiService serviceToUse;
+                if (selectedModel.startsWith("openai:")) {
+                    serviceToUse = openAiService;
+                } else {
+                    serviceToUse = claudeService;
+                }
+                
                 // Use the CodeCommandHandler to process the code command
-                CodeCommandHandler codeCommandHandler = new CodeCommandHandler(claudeService);
+                CodeCommandHandler codeCommandHandler = new CodeCommandHandler(serviceToUse);
                 return codeCommandHandler.processCodeCommand(message);
             }
             
@@ -1112,8 +1186,22 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
         new SwingWorker<String, Void>() {
             @Override
             protected String doInBackground() throws Exception {
+                // Get the currently selected model
+                String selectedModel = (String) modelSelector.getSelectedItem();
+                if (selectedModel == null) {
+                    return "Please select a model first.";
+                }
+                
+                // Determine which service to use based on the model ID
+                AiService serviceToUse;
+                if (selectedModel.startsWith("openai:")) {
+                    serviceToUse = openAiService;
+                } else {
+                    serviceToUse = claudeService;
+                }
+                
                 // Use the LintCommandHandler to process the lint command
-                LintCommandHandler lintCommandHandler = new LintCommandHandler(claudeService);
+                LintCommandHandler lintCommandHandler = new LintCommandHandler(serviceToUse);
                 return lintCommandHandler.processLintCommand(message);
             }
             
@@ -1167,17 +1255,36 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
         log.info("Getting AI response for message: {}", message);
         
         // Get the currently selected model from the dropdown
-        ModelInfo selectedModel = (ModelInfo) modelSelector.getSelectedItem();
-        if (selectedModel != null) {
-            // Set the current model ID before generating the response
-            log.info("Using model from dropdown for message: {}", selectedModel.id());
-            claudeService.setModel(selectedModel.id());
-        } else {
-            log.warn("No model selected in dropdown, using default model: {}", claudeService.getCurrentModel());
+        String selectedModel = (String) modelSelector.getSelectedItem();
+        if (selectedModel == null) {
+            log.warn("No model selected in dropdown, using default Anthropic model: {}", claudeService.getCurrentModel());
+            return claudeService.generateResponse(new ArrayList<>(conversationHistory));
         }
         
-        // Call Claude API with full conversation history
-        return claudeService.generateResponse(new ArrayList<>(conversationHistory));
+        // Get the model ID
+        log.info("Using model from dropdown for message: {}", selectedModel);
+        
+        // Check if this is an OpenAI model (prefixed with "openai:")
+        if (selectedModel.startsWith("openai:")) {
+            // Extract the actual OpenAI model ID
+            String openAiModelId = selectedModel.substring(7); // Remove "openai:" prefix
+            log.info("Using OpenAI model: {}", openAiModelId);
+            
+            // Set the model in the OpenAI service
+            openAiService.setModel(openAiModelId);
+            
+            // Call OpenAI API with conversation history
+            return openAiService.generateResponse(new ArrayList<>(conversationHistory));
+        } else {
+            // This is an Anthropic model
+            log.info("Using Anthropic model: {}", selectedModel);
+            
+            // Set the model in the Claude service
+            claudeService.setModel(selectedModel);
+            
+            // Call Claude API with conversation history
+            return claudeService.generateResponse(new ArrayList<>(conversationHistory));
+        }
     }
     
     /**
@@ -1188,8 +1295,22 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
         new SwingWorker<String, Void>() {
             @Override
             protected String doInBackground() throws Exception {
+                // Get the currently selected model
+                String selectedModel = (String) modelSelector.getSelectedItem();
+                if (selectedModel == null) {
+                    return "Please select a model first.";
+                }
+                
+                // Determine which service to use based on the model ID
+                AiService serviceToUse;
+                if (selectedModel.startsWith("openai:")) {
+                    serviceToUse = openAiService;
+                } else {
+                    serviceToUse = claudeService;
+                }
+                
                 // Create a LintCommandHandler and process the undo
-                LintCommandHandler lintHandler = new LintCommandHandler(claudeService);
+                LintCommandHandler lintHandler = new LintCommandHandler(serviceToUse);
                 return lintHandler.undoLastRename();
             }
             
