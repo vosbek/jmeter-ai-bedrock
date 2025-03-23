@@ -199,6 +199,7 @@ public class ChatUIManager {
                 
                 // Variable to store Anthropic models for reference
                 ModelListPage anthropicModels = null;
+                com.openai.models.ModelListPage openAiModels = null;
                 
                 try {
                     // Get Anthropic models
@@ -211,39 +212,40 @@ public class ChatUIManager {
                     log.error("Error loading Anthropic models: {}", e.getMessage(), e);
                 }
                 
-                // Add hardcoded OpenAI models as a temporary solution
-                // This avoids compatibility issues with ModelInfo creation
+                // Add OpenAI models
                 try {
-                    // Common OpenAI models
-                    String[] openAiModels = {
-                        "gpt-4o",
-                        "gpt-4-turbo",
-                        "gpt-4",
-                        "gpt-3.5-turbo"
-                    };
-                    
-                    // Only proceed if we have at least one Anthropic model to use as a template
-                    if (anthropicModels != null && anthropicModels.data() != null && !anthropicModels.data().isEmpty()) {
-                        for (String modelId : openAiModels) {
-                            try {
-                                // Get the existing ModelInfo builder and only set the ID
-                                // This avoids using fields that might not exist in the ModelInfo class
-                                ModelInfo modelInfo = anthropicModels.data().get(0).toBuilder()
-                                    .id("openai:" + modelId)
-                                    .build();
-                            
-                                models.add(modelInfo);
-                                log.debug("Added OpenAI model to selector: {}", modelId);
-                            } catch (Exception e) {
-                                log.warn("Could not create ModelInfo for {}: {}", modelId, e.getMessage());
+                    openAiModels = Models.getOpenAiModels(openAiService.getClient());
+                    if (openAiModels != null && openAiModels.data() != null) {
+                        // Convert OpenAI models to Anthropic ModelInfo objects
+                        for (com.openai.models.Model openAiModel : openAiModels.data()) {
+                            // Only include GPT models and filter out specific model types
+                            if (openAiModel.id().startsWith("gpt") && 
+                                !openAiModel.id().contains("audio") && 
+                                !openAiModel.id().contains("tts") && 
+                                !openAiModel.id().contains("whisper") && 
+                                !openAiModel.id().contains("davinci") && 
+                                !openAiModel.id().contains("search") && 
+                                !openAiModel.id().contains("transcribe") && 
+                                !openAiModel.id().contains("realtime") && 
+                                !openAiModel.id().contains("instruct")) {
+                                
+                                try {
+                                    // Create a ModelInfo for each OpenAI model
+                                    ModelInfo modelInfo = ModelInfo.builder()
+                                        .id("openai:" + openAiModel.id())
+                                        .build();
+                                    
+                                    models.add(modelInfo);
+                                    log.debug("Added OpenAI model to selector: {}", openAiModel.id());
+                                } catch (Exception e) {
+                                    log.warn("Could not create ModelInfo for {}: {}", openAiModel.id(), e.getMessage());
+                                }
                             }
                         }
-                        log.info("Added {} OpenAI models", openAiModels.length);
-                    } else {
-                        log.warn("Could not add OpenAI models because no Anthropic models were available as templates");
+                        log.info("Added OpenAI models to selector");
                     }
                 } catch (Exception e) {
-                    log.error("Error adding OpenAI models: {}", e.getMessage(), e);
+                    log.error("Error loading OpenAI models: {}", e.getMessage(), e);
                 }
                 return models;
             }

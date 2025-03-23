@@ -291,18 +291,15 @@ public class OpenAiService implements AiService {
             try {
                 // Get the first choice
                 ChatCompletion.Choice choice = chatCompletion.choices().get(0);
-                log.info("Choice: {}", choice);
                 
                 // Extract the content from the message
                 // The SDK provides methods to access the message and its content
                 responseContent = choice.message().content().orElse("No content available");
-                log.info("Extracted content: {}", responseContent);
             } catch (Exception ex) {
                 log.error("Error extracting content using SDK methods", ex);
                 
                 // Fallback to using toString() if SDK methods fail
                 String choiceStr = chatCompletion.choices().get(0).toString();
-                log.info("Fallback raw choice: {}", choiceStr);
                 
                 // Extract just the actual content text
                 int contentStart = choiceStr.indexOf("content=");
@@ -326,7 +323,6 @@ public class OpenAiService implements AiService {
                 } else {
                     responseContent = choiceStr;
                 }
-                log.info("Fallback content extraction: {}", responseContent);
             }
 
             return responseContent;
@@ -338,114 +334,6 @@ public class OpenAiService implements AiService {
             return "Error: " + errorMessage;
         }
     }
-
-    /**
-     * Generates a response from OpenAI for a single message without conversation
-     * history. This is useful for context-specific queries like the @this command
-     * 
-     * @param message The message to send to OpenAI
-     * @return The response from OpenAI
-     */
-    // public String generateDirectResponse(String message) {
-    //     try {
-    //         log.info("Generating direct response for message: {}",
-    //                 message.substring(0, Math.min(100, message.length())));
-
-    //         // Ensure a model is set
-    //         if (currentModelId == null || currentModelId.isEmpty()) {
-    //             currentModelId = "gpt-4o";
-    //             log.warn("No model was set, defaulting to: {}", currentModelId);
-    //         }
-
-    //         // Ensure a temperature is set
-    //         if (temperature < 0 || temperature > 1) {
-    //             temperature = 0.7f;
-    //             log.warn("Invalid temperature value ({}), defaulting to: {}", temperature, 0.7f);
-    //         }
-
-    //         // Log which model is being used for this message
-    //         log.info("Generating direct response using model: {} and temperature: {}", currentModelId, temperature);
-            
-    //         // Build the parameters
-    //         ChatCompletionCreateParams.Builder paramsBuilder = ChatCompletionCreateParams.builder()
-    //                 .maxCompletionTokens(maxTokens)
-    //                 .temperature(temperature)
-    //                 .model(currentModelId)
-    //                 .addUserMessage(message);
-            
-    //         // Check if we need to include the system prompt
-    //         boolean shouldIncludeSystemPrompt = !systemPromptInitialized;
-    //         if (shouldIncludeSystemPrompt) {
-    //             log.info("Using system prompt (first 100 chars): {}", 
-    //                 systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
-    //             paramsBuilder.addSystemMessage(systemPrompt);
-    //             systemPromptInitialized = true;
-    //             log.info("Including system prompt in request (length: {})", systemPrompt.length());
-    //         } else {
-    //             log.info("Skipping system prompt to save tokens (already sent in previous messages)");
-    //         }
-            
-    //         ChatCompletionCreateParams params = paramsBuilder.build();
-            
-    //         log.info("Request parameters: maxTokens={}, temperature={}, model={}, messageLength={}",
-    //                 params.maxCompletionTokens(), params.temperature(), params.model(), 
-    //                 message.length());
-
-    //         ChatCompletion response = client.chat().completions().create(params);
-
-    //         log.info("Params {}", params);
-
-    //         // Extract the response content using SDK methods
-    //         String responseContent;
-    //         try {
-    //             // Get the first choice
-    //             ChatCompletion.Choice choice = response.choices().get(0);
-    //             log.info("Choice: {}", choice);
-                
-    //             // Extract the content from the message
-    //             responseContent = choice.message().content().orElse("No content available");
-    //             log.info("Extracted content: {}", responseContent);
-    //         } catch (Exception ex) {
-    //             log.error("Error extracting content using SDK methods", ex);
-                
-    //             // Fallback to using toString() if SDK methods fail
-    //             String choiceStr = response.choices().get(0).toString();
-    //             log.info("Fallback raw choice: {}", choiceStr);
-                
-    //             // Extract just the actual content text
-    //             int contentStart = choiceStr.indexOf("content=");
-    //             if (contentStart > 0) {
-    //                 contentStart += 8; // Move past "content="
-                    
-    //                 // Find the end of the content (before refusal or annotations)
-    //                 int contentEnd = choiceStr.indexOf(", refusal=", contentStart);
-    //                 if (contentEnd < 0) {
-    //                     contentEnd = choiceStr.indexOf(", annotations=", contentStart);
-    //                 }
-    //                 if (contentEnd < 0) {
-    //                     contentEnd = choiceStr.indexOf("}", contentStart);
-    //                 }
-                    
-    //                 if (contentEnd > contentStart) {
-    //                     responseContent = choiceStr.substring(contentStart, contentEnd);
-    //                 } else {
-    //                     responseContent = choiceStr.substring(contentStart);
-    //                 }
-    //             } else {
-    //                 responseContent = choiceStr;
-    //             }
-    //             log.info("Fallback content extraction: {}", responseContent);
-    //         }
-
-    //         return responseContent;
-    //     } catch (Exception e) {
-    //         log.error("Error generating direct response", e);
-            
-    //         // Extract and format error message for better readability
-    //         String errorMessage = extractUserFriendlyErrorMessage(e);
-    //         return "Error: " + errorMessage;
-    //     }
-    // }
     
     /**
      * Extracts a user-friendly error message from an exception

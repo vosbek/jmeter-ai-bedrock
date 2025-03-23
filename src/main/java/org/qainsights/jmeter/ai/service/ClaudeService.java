@@ -268,63 +268,6 @@ public class ClaudeService implements AiService {
             return "Error: " + errorMessage;
         }
     }
-
-    /**
-     * Generates a response from Claude for a single message without conversation
-     * history
-     * This is useful for context-specific queries like the @this command
-     * 
-     * @param message The message to send to Claude
-     * @return The response from Claude
-     */
-    // public String generateDirectResponse(String message) {
-    //     try {
-    //         log.info("Generating direct response for message: {}",
-    //                 message.substring(0, Math.min(100, message.length())));
-
-    //         // Ensure a model is set
-    //         if (currentModelId == null || currentModelId.isEmpty()) {
-    //             currentModelId = "claude-3-sonnet-20240229";
-    //             log.warn("No model was set, defaulting to: {}", currentModelId);
-    //         }
-
-    //         // Ensure a temperature is set
-    //         if (temperature < 0 || temperature > 1) {
-    //             temperature = 0.7f;
-    //             log.warn("Invalid temperature value ({}), defaulting to: {}", temperature, 0.7f);
-    //         }
-
-    //         // Log which model is being used for this message
-    //         log.info("Generating direct response using model: {} and temperature: {}", currentModelId, temperature);
-    //         log.info("Using system prompt (first 100 chars): {}", 
-    //             systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
-
-    //         // For direct responses, we always include the system prompt since it's a one-off interaction
-    //         MessageCreateParams params = MessageCreateParams.builder()
-    //                 .maxTokens(maxTokens)
-    //                 .temperature(temperature)
-    //                 .model(currentModelId)
-    //                 .system(systemPrompt)  // Always include system prompt for direct responses
-    //                 .addUserMessage(message)
-    //                 .build();
-            
-    //         log.info("Request parameters: maxTokens={}, temperature={}, model={}, systemPromptLength={}, messageLength={}",
-    //                 params.maxTokens(), params.temperature(), params.model(), 
-    //                 systemPrompt.length(), message.length());
-
-    //         Message response = client.messages().create(params);
-
-    //         log.info(response.content().toString());
-
-    //         return String.valueOf(response.content().get(0).text().get().text());
-    //     } catch (Exception e) {
-    //         log.error("Error generating direct response", e);
-            
-    //         // Extract and format error message for better readability
-    //         String errorMessage = extractUserFriendlyErrorMessage(e);
-    //         return "Error: " + errorMessage;
-    //     }
-    // }
     
     /**
      * Extracts a user-friendly error message from an exception

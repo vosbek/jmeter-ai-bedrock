@@ -37,10 +37,6 @@ public class ElementSuggestionManager {
      * @param message The message to extract element suggestions from
      */
     public void createElementButtons(String message) {
-        log.info("Creating element buttons from message: {}", message.substring(0, Math.min(100, message.length())));
-        
-        // Debug the navigation panel state before clearing
-        log.info("Navigation panel has {} components before clearing", navigationPanel.getComponentCount());
         for (Component component : navigationPanel.getComponents()) {
             if (component instanceof JButton) {
                 JButton button = (JButton) component;
@@ -96,30 +92,16 @@ public class ElementSuggestionManager {
             // Create a button for the element
             String displayName = formatElementType(normalizedType);
             createElementButton(displayName, normalizedType, additionalInfo);
-            log.info("Created element button for: {} ({})", displayName, normalizedType);
+
         }
         
         // If no suggestions found, add some context-aware suggestions
         if (!foundSuggestions) {
-            log.info("No direct element suggestions found, adding context-aware suggestions");
             String[][] contextSuggestions = getContextAwareElementSuggestions();
             if (contextSuggestions != null && contextSuggestions.length > 0) {
                 for (String[] suggestion : contextSuggestions) {
                     createElementButton(suggestion[0], suggestion[1], null);
-                    log.info("Added context-aware suggestion: {}", suggestion[0]);
                 }
-            }
-        }
-        
-        // Debug the navigation panel state after adding buttons
-        log.info("Navigation panel has {} components after adding buttons", navigationPanel.getComponentCount());
-        for (Component component : navigationPanel.getComponents()) {
-            if (component instanceof JButton) {
-                JButton button = (JButton) component;
-                log.info("Button after processing: text='{}', tooltip='{}'", 
-                         button.getText(), button.getToolTipText());
-            } else {
-                log.info("Non-button component after processing: {}", component.getClass().getSimpleName());
             }
         }
         
@@ -161,16 +143,12 @@ public class ElementSuggestionManager {
         String finalNormalizedType = normalizedType;
         addButton.addActionListener(e -> {
             try {
-                log.info("Adding element: {} ({})", displayName, finalNormalizedType);
-                
                 // Process the request directly without involving AI
                 boolean success = org.qainsights.jmeter.ai.utils.JMeterElementManager.addElement(finalNormalizedType, 
                     additionalInfo != null ? additionalInfo.replace(" named \"", "").replace("\"", "") : null);
 
                 // Select the newly added element
                 selectLastAddedElement();
-                
-                log.info("Element addition result: {}", success ? "success" : "failure");
                 
                 // Process the response - log the outcome for now
                 if (success) {
@@ -181,7 +159,6 @@ public class ElementSuggestionManager {
                             org.qainsights.jmeter.ai.utils.JMeterElementManager.getDefaultNameForElement(finalNormalizedType));
                 }
             } catch (Exception ex) {
-                log.error("Error adding element", ex);
                 JOptionPane.showMessageDialog(null, 
                     "Error adding element: " + ex.getMessage(), 
                     "Error", 
@@ -191,7 +168,6 @@ public class ElementSuggestionManager {
 
         // Add the button to the navigation panel
         navigationPanel.add(addButton);
-        log.info("Created button for element: {}", displayName);
         
         return addButton;
     }
@@ -200,8 +176,6 @@ public class ElementSuggestionManager {
      * Selects the last added element in the JMeter tree.
      */
     private void selectLastAddedElement() {
-        log.info("Selecting last added element");
-
         try {
             GuiPackage guiPackage = GuiPackage.getInstance();
             if (guiPackage == null) {
@@ -220,7 +194,6 @@ public class ElementSuggestionManager {
                 JMeterTreeNode lastChild = (JMeterTreeNode) currentNode.getChildAt(currentNode.getChildCount() - 1);
                 // Use setSelectionPath instead of selectNode
                 guiPackage.getTreeListener().getJTree().setSelectionPath(new javax.swing.tree.TreePath(lastChild.getPath()));
-                log.info("Selected last child of current node: {}", lastChild.getName());
             } else {
                 log.info("Current node has no children to select");
             }
@@ -237,7 +210,6 @@ public class ElementSuggestionManager {
      */
     private String mapToNormalizedElementType(String elementType) {
         elementType = elementType.toLowerCase();
-        log.info("Trying to map element type: {}", elementType);
 
         // Generic element types
         if (elementType.contains("sampler")) {
@@ -399,7 +371,6 @@ public class ElementSuggestionManager {
         }
 
         // If we couldn't match the element type, return null
-        log.info("Could not map element type: {}", elementType);
         return null;
     }
     
@@ -536,7 +507,6 @@ public class ElementSuggestionManager {
         
         // Get the class name of the current node
         String className = currentNode.getStaticLabel();
-        log.info("Current node class: {}", className);
         
         // Provide context-aware suggestions based on the current node
         switch (className) {

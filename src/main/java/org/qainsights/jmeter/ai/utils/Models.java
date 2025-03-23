@@ -123,10 +123,17 @@ public class Models {
     public static List<String> getOpenAiModelIds(OpenAIClient client) {
         com.openai.models.ModelListPage models = getOpenAiModels(client);
         if (models != null && models.data() != null) {
-            // Return the list of GPT models only
-            // Filter out non-GPT models
+            // Return the list of GPT models only, excluding audio and TTS models
             return models.data().stream()
-                    .filter(model -> model.id().startsWith("gpt"))
+                    .filter(model -> model.id().startsWith("gpt")) // Include only GPT models
+                    .filter(model -> !model.id().contains("audio")) // Exclude audio models
+                    .filter(model -> !model.id().contains("tts")) // Exclude text-to-speech models
+                    .filter(model -> !model.id().contains("whisper")) // Exclude whisper models
+                    .filter(model -> !model.id().contains("davinci")) // Exclude Davinci models
+                    .filter(model -> !model.id().contains("search")) // Exclude search models
+                    .filter(model -> !model.id().contains("transcribe")) // Exclude transcribe models
+                    .filter(model -> !model.id().contains("realtime")) // Exclude realtime models
+                    .filter(model -> !model.id().contains("instruct")) // Exclude instruct models
                     .map(com.openai.models.Model::id)
                     .collect(Collectors.toList());
         }
