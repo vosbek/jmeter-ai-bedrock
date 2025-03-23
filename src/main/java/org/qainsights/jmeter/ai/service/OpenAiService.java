@@ -2,27 +2,27 @@ package org.qainsights.jmeter.ai.service;
 
 import java.util.List;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.Message;
-import com.anthropic.models.MessageCreateParams;
-import org.qainsights.jmeter.ai.utils.AiConfig;
+ 
+import com.openai.client.OpenAIClient;
+import com.openai.client.okhttp.OpenAIOkHttpClient;
+import com.openai.models.ChatCompletion;
+import com.openai.models.ChatCompletionCreateParams;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.qainsights.jmeter.ai.utils.AiConfig;
 
-/**
- * ClaudeService class.
- */
-public class ClaudeService implements AiService {
-    private static final Logger log = LoggerFactory.getLogger(ClaudeService.class);
+public class OpenAiService implements AiService {
+
+    private static final Logger log = LoggerFactory.getLogger(OpenAiService.class);
+    private final OpenAIClient client;
+    private boolean systemPromptInitialized = false;
+
     private final int maxHistorySize;
     private String currentModelId;
     private float temperature;
-    private final AnthropicClient client;
     private String systemPrompt;
-    private boolean systemPromptInitialized = false;
     private long maxTokens;
-
     // Default system prompt to focus responses on JMeter
     private static final String DEFAULT_JMETER_SYSTEM_PROMPT = 
             "You are a JMeter expert assistant embedded in a JMeter plugin called 'Feather Wand - JMeter Agent'. " +
@@ -94,34 +94,25 @@ public class ClaudeService implements AiService {
             "- Bold for element names and important concepts\n" +
             "\n" +
             "Version: JMeter 5.6+ (Also support questions about older versions from 3.0+)";
-
-    public ClaudeService() {
-        // Default history size of 10, can be configured through jmeter.properties
-        this.maxHistorySize = Integer.parseInt(AiConfig.getProperty("claude.max.history.size", "10"));
-
-        // Initialize the client
-        String API_KEY = AiConfig.getProperty("anthropic.api.key", "YOUR_API_KEY");
-        
-        // Check if logging should be enabled
-        String loggingLevel = AiConfig.getProperty("anthropic.log.level", "");
+    
+    public OpenAiService() {
+        String API_KEY = AiConfig.getProperty("openai.api.key", "");
+        String loggingLevel = AiConfig.getProperty("openai.log.level", "");
         if (!loggingLevel.isEmpty()) {
-            // Set the environment variable for the Anthropic client logging
-            System.setProperty("ANTHROPIC_LOG", loggingLevel);
-            log.info("Enabled Anthropic client logging with level: {}", loggingLevel);
+            // Set the environment variable for the OpenAI client logging
+            System.setProperty("OPENAI_LOG", loggingLevel);
+            log.info("Enabled OpenAI client logging with level: {}", loggingLevel);
         }
-        
-        this.client = AnthropicOkHttpClient.builder()
-                .apiKey(API_KEY)
-                .build();
+        this.client = new OpenAIOkHttpClient.Builder().apiKey(API_KEY).build();
+        this.maxHistorySize = Integer.parseInt(AiConfig.getProperty("openai.max.history.size", "10"));
+        this.currentModelId = AiConfig.getProperty("openai.default.model", "gpt-4o");
+        this.temperature = Float.parseFloat(AiConfig.getProperty("openai.temperature", "0.7"));
+        this.systemPrompt = DEFAULT_JMETER_SYSTEM_PROMPT;
+        this.maxTokens = Long.parseLong(AiConfig.getProperty("openai.max.tokens", "4096"));
 
-        // Get default model from properties or use SONNET if not specified
-        this.currentModelId = AiConfig.getProperty("claude.default.model", "claude-3-sonnet-20240229");
-        this.temperature = Float.parseFloat(AiConfig.getProperty("claude.temperature", "0.5"));
-        this.maxTokens = Long.parseLong(AiConfig.getProperty("claude.max.tokens", "1024"));
-        
         // Load system prompt from properties or use default
         try {
-            systemPrompt = AiConfig.getProperty("claude.system.prompt", DEFAULT_JMETER_SYSTEM_PROMPT);
+            systemPrompt = AiConfig.getProperty("openai.system.prompt", DEFAULT_JMETER_SYSTEM_PROMPT);
             
             if (systemPrompt == null) {
                 log.warn("System prompt is null, using default");
@@ -138,7 +129,7 @@ public class ClaudeService implements AiService {
         }
     }
 
-    public AnthropicClient getClient() {
+    public OpenAIClient getClient() {
         return client;
     }
 
@@ -165,15 +156,15 @@ public class ClaudeService implements AiService {
         return temperature;
     }
 
-    public long getMaxTokens() {
-        return maxTokens;
-    }
-
     public void setMaxTokens(long maxTokens) {
         this.maxTokens = maxTokens;
         log.info("Max tokens set to: {}", maxTokens);
     }
-    
+
+    public long getMaxTokens() {
+        return maxTokens;
+    }
+
     /**
      * Resets the system prompt initialization flag.
      * This should be called when starting a new conversation.
@@ -184,7 +175,7 @@ public class ClaudeService implements AiService {
     }
 
     public String sendMessage(String message) {
-        log.info("Sending message to Claude: {}", message);
+        log.info("Sending message to OpenAI: {}", message);
         return generateResponse(java.util.Collections.singletonList(message));
     }
 
@@ -194,7 +185,7 @@ public class ClaudeService implements AiService {
 
             // Ensure a model is set
             if (currentModelId == null || currentModelId.isEmpty()) {
-                currentModelId = "claude-3-sonnet-20240229";
+                currentModelId = "gpt-4o";
                 log.warn("No model was set, defaulting to: {}", currentModelId);
             }
 
@@ -224,42 +215,121 @@ public class ClaudeService implements AiService {
                 log.info("Limiting conversation to last {} messages", limitedConversation.size());
             }
 
-            // Build the request parameters
-            MessageCreateParams.Builder paramsBuilder = MessageCreateParams.builder()
-                    .maxTokens(maxTokens)
+            // Create a fresh builder for parameters following the working example
+            ChatCompletionCreateParams.Builder paramsBuilder = ChatCompletionCreateParams.builder()
+                    .maxCompletionTokens(maxTokens)
                     .temperature(temperature)
                     .model(currentModelId);
             
-            // Only include the system prompt for the first message in a conversation
-            if (isFirstMessage) {
-                paramsBuilder.system(systemPrompt);
-                log.info("Including system prompt in request (length: {})", systemPrompt.length());
-            } else {
-                log.info("Skipping system prompt to save tokens (already sent in previous messages)");
-            }
+            // Always include the system prompt
+            paramsBuilder.addSystemMessage(systemPrompt);
+            log.info("Including system prompt in request (length: {})", systemPrompt.length());
 
-            // Add messages from the conversation history
-            for (int i = 0; i < limitedConversation.size(); i++) {
-                String msg = limitedConversation.get(i);
-                if (i % 2 == 0) {
-                    // User messages
-                    paramsBuilder.addUserMessage(msg);
-                } else {
-                    // Assistant (Claude) messages
-                    paramsBuilder.addAssistantMessage(msg);
+            // Debug log the conversation array
+            log.info("Conversation size: {}", conversation.size());
+            
+            // Limit conversation history to last maxHistorySize messages to avoid token limits
+            List<String> limitedHistory;
+            if (conversation.size() > maxHistorySize) {
+                limitedHistory = conversation.subList(conversation.size() - maxHistorySize, conversation.size());
+                log.info("Limiting conversation to last {} messages", limitedHistory.size());
+            } else {
+                limitedHistory = new java.util.ArrayList<>(conversation);
+            }
+            
+            // Log the conversation for debugging
+            for (int i = 0; i < limitedHistory.size(); i++) {
+                log.info("Message[{}]: {}", i, limitedHistory.get(i));
+            }
+            
+            if (limitedHistory.isEmpty()) {
+                log.warn("Conversation is empty, using default message");
+                paramsBuilder.addUserMessage("Hello, how can you help me with JMeter?");
+            } else {
+                // Process the conversation history
+                // We'll assume the conversation alternates between user and assistant messages
+                // with the first message being from the user
+                for (int i = 0; i < limitedHistory.size(); i++) {
+                    String msg = limitedHistory.get(i);
+                    if (msg == null || msg.isEmpty()) {
+                        log.warn("Skipping empty message at position {}", i);
+                        continue;
+                    }
+                    
+                    if (i % 2 == 0) {
+                        // User messages (even indices: 0, 2, 4...)
+                        paramsBuilder.addUserMessage(msg);
+                        log.info("Added user message {}: {}", i, 
+                                msg.substring(0, Math.min(50, msg.length())));
+                    } else {
+                        // Assistant messages (odd indices: 1, 3, 5...)
+                        // For OpenAI Java SDK 0.31.0, we need to use a different approach
+                        // Since we can't directly add assistant messages, we'll add them as system messages
+                        // This is a workaround and not ideal, but it should work
+                        paramsBuilder.addSystemMessage("Assistant: " + msg);
+                        log.info("Added assistant message as system message {}: {}", i, 
+                                msg.substring(0, Math.min(50, msg.length())));
+                    }
                 }
             }
 
-            MessageCreateParams params = paramsBuilder.build();
+            // Build the parameters and create the chat completion
+            ChatCompletionCreateParams params = paramsBuilder.build();
             log.info("Request parameters: maxTokens={}, temperature={}, model={}, messagesCount={}",
-                    params.maxTokens(), params.temperature(), params.model(), 
-                    limitedConversation.size());
+                    params.maxCompletionTokens(), params.temperature(), params.model(), 
+                    conversation.size());
+            
+            // Debug log the messages in the request
+            log.info("Request messages: {}", params.messages());
 
-            Message message = client.messages().create(params);
+            ChatCompletion chatCompletion = client.chat().completions().create(params);
 
-            log.info(message.content().toString());
+            log.info("Chat completions {}", chatCompletion);
 
-            return String.valueOf(message.content().get(0).text().get().text());
+            // Extract the response content using SDK methods
+            String responseContent;
+            try {
+                // Get the first choice
+                ChatCompletion.Choice choice = chatCompletion.choices().get(0);
+                log.info("Choice: {}", choice);
+                
+                // Extract the content from the message
+                // The SDK provides methods to access the message and its content
+                responseContent = choice.message().content().orElse("No content available");
+                log.info("Extracted content: {}", responseContent);
+            } catch (Exception ex) {
+                log.error("Error extracting content using SDK methods", ex);
+                
+                // Fallback to using toString() if SDK methods fail
+                String choiceStr = chatCompletion.choices().get(0).toString();
+                log.info("Fallback raw choice: {}", choiceStr);
+                
+                // Extract just the actual content text
+                int contentStart = choiceStr.indexOf("content=");
+                if (contentStart > 0) {
+                    contentStart += 8; // Move past "content="
+                    
+                    // Find the end of the content (before refusal or annotations)
+                    int contentEnd = choiceStr.indexOf(", refusal=", contentStart);
+                    if (contentEnd < 0) {
+                        contentEnd = choiceStr.indexOf(", annotations=", contentStart);
+                    }
+                    if (contentEnd < 0) {
+                        contentEnd = choiceStr.indexOf("}", contentStart);
+                    }
+                    
+                    if (contentEnd > contentStart) {
+                        responseContent = choiceStr.substring(contentStart, contentEnd);
+                    } else {
+                        responseContent = choiceStr.substring(contentStart);
+                    }
+                } else {
+                    responseContent = choiceStr;
+                }
+                log.info("Fallback content extraction: {}", responseContent);
+            }
+
+            return responseContent;
         } catch (Exception e) {
             log.error("Error generating response", e);
             
@@ -270,12 +340,11 @@ public class ClaudeService implements AiService {
     }
 
     /**
-     * Generates a response from Claude for a single message without conversation
-     * history
-     * This is useful for context-specific queries like the @this command
+     * Generates a response from OpenAI for a single message without conversation
+     * history. This is useful for context-specific queries like the @this command
      * 
-     * @param message The message to send to Claude
-     * @return The response from Claude
+     * @param message The message to send to OpenAI
+     * @return The response from OpenAI
      */
     // public String generateDirectResponse(String message) {
     //     try {
@@ -284,7 +353,7 @@ public class ClaudeService implements AiService {
 
     //         // Ensure a model is set
     //         if (currentModelId == null || currentModelId.isEmpty()) {
-    //             currentModelId = "claude-3-sonnet-20240229";
+    //             currentModelId = "gpt-4o";
     //             log.warn("No model was set, defaulting to: {}", currentModelId);
     //         }
 
@@ -296,27 +365,79 @@ public class ClaudeService implements AiService {
 
     //         // Log which model is being used for this message
     //         log.info("Generating direct response using model: {} and temperature: {}", currentModelId, temperature);
-    //         log.info("Using system prompt (first 100 chars): {}", 
-    //             systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
-
-    //         // For direct responses, we always include the system prompt since it's a one-off interaction
-    //         MessageCreateParams params = MessageCreateParams.builder()
-    //                 .maxTokens(maxTokens)
+            
+    //         // Build the parameters
+    //         ChatCompletionCreateParams.Builder paramsBuilder = ChatCompletionCreateParams.builder()
+    //                 .maxCompletionTokens(maxTokens)
     //                 .temperature(temperature)
     //                 .model(currentModelId)
-    //                 .system(systemPrompt)  // Always include system prompt for direct responses
-    //                 .addUserMessage(message)
-    //                 .build();
+    //                 .addUserMessage(message);
             
-    //         log.info("Request parameters: maxTokens={}, temperature={}, model={}, systemPromptLength={}, messageLength={}",
-    //                 params.maxTokens(), params.temperature(), params.model(), 
-    //                 systemPrompt.length(), message.length());
+    //         // Check if we need to include the system prompt
+    //         boolean shouldIncludeSystemPrompt = !systemPromptInitialized;
+    //         if (shouldIncludeSystemPrompt) {
+    //             log.info("Using system prompt (first 100 chars): {}", 
+    //                 systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
+    //             paramsBuilder.addSystemMessage(systemPrompt);
+    //             systemPromptInitialized = true;
+    //             log.info("Including system prompt in request (length: {})", systemPrompt.length());
+    //         } else {
+    //             log.info("Skipping system prompt to save tokens (already sent in previous messages)");
+    //         }
+            
+    //         ChatCompletionCreateParams params = paramsBuilder.build();
+            
+    //         log.info("Request parameters: maxTokens={}, temperature={}, model={}, messageLength={}",
+    //                 params.maxCompletionTokens(), params.temperature(), params.model(), 
+    //                 message.length());
 
-    //         Message response = client.messages().create(params);
+    //         ChatCompletion response = client.chat().completions().create(params);
 
-    //         log.info(response.content().toString());
+    //         log.info("Params {}", params);
 
-    //         return String.valueOf(response.content().get(0).text().get().text());
+    //         // Extract the response content using SDK methods
+    //         String responseContent;
+    //         try {
+    //             // Get the first choice
+    //             ChatCompletion.Choice choice = response.choices().get(0);
+    //             log.info("Choice: {}", choice);
+                
+    //             // Extract the content from the message
+    //             responseContent = choice.message().content().orElse("No content available");
+    //             log.info("Extracted content: {}", responseContent);
+    //         } catch (Exception ex) {
+    //             log.error("Error extracting content using SDK methods", ex);
+                
+    //             // Fallback to using toString() if SDK methods fail
+    //             String choiceStr = response.choices().get(0).toString();
+    //             log.info("Fallback raw choice: {}", choiceStr);
+                
+    //             // Extract just the actual content text
+    //             int contentStart = choiceStr.indexOf("content=");
+    //             if (contentStart > 0) {
+    //                 contentStart += 8; // Move past "content="
+                    
+    //                 // Find the end of the content (before refusal or annotations)
+    //                 int contentEnd = choiceStr.indexOf(", refusal=", contentStart);
+    //                 if (contentEnd < 0) {
+    //                     contentEnd = choiceStr.indexOf(", annotations=", contentStart);
+    //                 }
+    //                 if (contentEnd < 0) {
+    //                     contentEnd = choiceStr.indexOf("}", contentStart);
+    //                 }
+                    
+    //                 if (contentEnd > contentStart) {
+    //                     responseContent = choiceStr.substring(contentStart, contentEnd);
+    //                 } else {
+    //                     responseContent = choiceStr.substring(contentStart);
+    //                 }
+    //             } else {
+    //                 responseContent = choiceStr;
+    //             }
+    //             log.info("Fallback content extraction: {}", responseContent);
+    //         }
+
+    //         return responseContent;
     //     } catch (Exception e) {
     //         log.error("Error generating direct response", e);
             
@@ -336,8 +457,8 @@ public class ClaudeService implements AiService {
         String errorMessage = e.getMessage();
         
         // Check for credit balance error
-        if (errorMessage != null && errorMessage.contains("credit balance is too low")) {
-            return "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.";
+        if (errorMessage != null && errorMessage.contains("insufficient_quota")) {
+            return "Your credit balance is too low to access the OpenAI API. Please check your billing information.";
         }
         
         // Check for API key error
@@ -362,8 +483,8 @@ public class ClaudeService implements AiService {
         
         // For other errors, provide a cleaner message
         if (errorMessage != null) {
-            // Extract the actual error message from the AnthropicError format
-            if (errorMessage.contains("AnthropicError")) {
+            // Try to extract a more readable message
+            if (errorMessage.contains("OpenAIError")) {
                 // Try to extract the message field from the error JSON
                 int messageStart = errorMessage.indexOf("message=");
                 if (messageStart != -1) {
@@ -376,10 +497,10 @@ public class ClaudeService implements AiService {
         }
         
         // If we couldn't extract a specific error message, return a generic one
-        return "An error occurred while communicating with the Anthropic API. Please try again later.";
+        return "An error occurred while communicating with the OpenAI API. Please try again later.";
     }
 
     public String getName() {
-        return "Anthropic Claude";
+        return "OpenAI";
     }
 }

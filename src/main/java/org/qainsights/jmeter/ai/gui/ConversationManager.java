@@ -11,7 +11,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import org.qainsights.jmeter.ai.service.AiService;
 import org.qainsights.jmeter.ai.service.ClaudeService;
+import org.qainsights.jmeter.ai.service.OpenAiService;
 import org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler;
 import org.qainsights.jmeter.ai.optimizer.OptimizeRequestHandler;
 import com.anthropic.models.ModelInfo;
@@ -25,6 +27,8 @@ public class ConversationManager {
     
     private final List<String> conversationHistory;
     private final ClaudeService claudeService;
+    private final OpenAiService openAiService;
+    private AiService currentAiService;
     private final MessageProcessor messageProcessor;
     private final JTextPane chatArea;
     private final JTextArea messageField;
@@ -45,13 +49,15 @@ public class ConversationManager {
      * @param elementSuggestionManager The element suggestion manager
      */
     public ConversationManager(JTextPane chatArea, JTextArea messageField, JButton sendButton,
-                              JComboBox<ModelInfo> modelSelector, ClaudeService claudeService,
+                              JComboBox<ModelInfo> modelSelector, ClaudeService claudeService, OpenAiService openAiService,
                               MessageProcessor messageProcessor, ElementSuggestionManager elementSuggestionManager) {
         this.chatArea = chatArea;
         this.messageField = messageField;
         this.sendButton = sendButton;
         this.modelSelector = modelSelector;
         this.claudeService = claudeService;
+        this.openAiService = openAiService;
+        this.currentAiService = claudeService; // Default to Claude
         this.messageProcessor = messageProcessor;
         this.elementSuggestionManager = elementSuggestionManager;
         this.conversationHistory = new ArrayList<>();
@@ -93,6 +99,20 @@ public class ConversationManager {
             messageProcessor.appendMessage(chatArea.getStyledDocument(), welcomeMessage, new Color(0, 51, 102), true);
         } catch (BadLocationException e) {
             log.error("Error displaying welcome message", e);
+        }
+    }
+    
+    /**
+     * Updates the current AI service based on the selected model.
+     */
+    private void updateCurrentAiService() {
+        String selectedModel = (String) modelSelector.getSelectedItem();
+        if (selectedModel != null && selectedModel.startsWith("openai:")) {
+            currentAiService = openAiService;
+            log.info("Updated current AI service to OpenAI");
+        } else {
+            currentAiService = claudeService;
+            log.info("Updated current AI service to Claude");
         }
     }
     
@@ -373,7 +393,21 @@ public class ConversationManager {
             @Override
             protected String doInBackground() throws Exception {
                 // Get optimization suggestions from OptimizeRequestHandler
-                return OptimizeRequestHandler.analyzeAndOptimizeSelectedElement();
+                // Use the appropriate AI service based on the selected model
+                String selectedModel = (String) modelSelector.getSelectedItem();
+                AiService serviceToUse;
+                
+                if (selectedModel != null && selectedModel.startsWith("openai:")) {
+                    // Use OpenAI service
+                    serviceToUse = openAiService;
+                    log.info("Using OpenAI service for optimization");
+                } else {
+                    // Use Claude service
+                    serviceToUse = claudeService;
+                    log.info("Using Claude service for optimization");
+                }
+                
+                return OptimizeRequestHandler.analyzeAndOptimizeSelectedElement(serviceToUse);
             }
             
             @Override
@@ -509,18 +543,33 @@ public class ConversationManager {
     private String getAiResponse(String message) {
         log.info("Getting AI response for message: {}", message);
         
+        // Update the current AI service based on the selected model
+        updateCurrentAiService();
+        
         // Get the currently selected model from the dropdown
-        ModelInfo selectedModel = (ModelInfo) modelSelector.getSelectedItem();
-        if (selectedModel != null) {
-            // Set the current model ID before generating the response
-            log.info("Using model from dropdown for message: {}", selectedModel.id());
-            claudeService.setModel(selectedModel.id());
+        String selectedModelStr = (String) modelSelector.getSelectedItem();
+        
+        if (selectedModelStr != null) {
+            if (selectedModelStr.startsWith("openai:")) {
+                // For OpenAI models, remove the prefix
+                String modelId = selectedModelStr.substring(7); // Remove "openai:" prefix
+                log.info("Using OpenAI model for message: {}", modelId);
+                openAiService.setModel(modelId);
+                currentAiService = openAiService;
+            } else {
+                // For Claude models
+                log.info("Using Claude model for message: {}", selectedModelStr);
+                claudeService.setModel(selectedModelStr);
+                currentAiService = claudeService;
+            }
         } else {
-            log.warn("No model selected in dropdown, using default model: {}", claudeService.getCurrentModel());
+            log.warn("No model selected in dropdown, using default Claude model");
+            currentAiService = claudeService;
         }
         
-        // Call Claude API with full conversation history
-        return claudeService.generateResponse(new ArrayList<>(conversationHistory));
+        // Use the current AI service to generate a response
+        log.info("Generating response using {}", currentAiService.getClass().getSimpleName());
+        return currentAiService.generateResponse(new ArrayList<>(conversationHistory));
     }
     
     /**

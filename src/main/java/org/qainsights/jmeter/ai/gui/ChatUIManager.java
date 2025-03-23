@@ -7,13 +7,16 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.util.function.Consumer;
 import java.util.List;
+import java.util.ArrayList;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.qainsights.jmeter.ai.service.ClaudeService;
+import org.qainsights.jmeter.ai.service.OpenAiService;
 import org.qainsights.jmeter.ai.utils.Models;
 import com.anthropic.models.ModelInfo;
+import com.anthropic.models.ModelListPage;
 
 /**
  * Manages the UI components of the chat interface.
@@ -41,9 +44,10 @@ public class ChatUIManager {
      * @param newChatAction The action to perform when the new chat button is clicked
      * @param modelSelectionAction The action to perform when a model is selected
      * @param claudeService The Claude service to use for model information
+     * @param openAiService The OpenAI service to use for model information
      */
     public ChatUIManager(Runnable sendMessageAction, Runnable newChatAction, 
-                         Consumer<ModelInfo> modelSelectionAction, ClaudeService claudeService) {
+                         Consumer<ModelInfo> modelSelectionAction, ClaudeService claudeService, OpenAiService openAiService) {
         // Initialize navigation buttons
         treeNavigationButtons = new TreeNavigationButtons();
         treeNavigationButtons.setUpButtonActionListener();
@@ -65,7 +69,7 @@ public class ChatUIManager {
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
         
         // Create model selector
-        modelSelector = createModelSelector(claudeService, modelSelectionAction);
+        modelSelector = createModelSelector(claudeService, openAiService, modelSelectionAction);
         JPanel modelPanel = createModelPanel(modelSelector);
         bottomPanel.add(modelPanel, BorderLayout.NORTH);
         
@@ -170,7 +174,7 @@ public class ChatUIManager {
      * @param modelSelectionAction The action to perform when a model is selected
      * @return The configured model selector
      */
-    private JComboBox<ModelInfo> createModelSelector(ClaudeService claudeService, Consumer<ModelInfo> modelSelectionAction) {
+    private JComboBox<ModelInfo> createModelSelector(ClaudeService claudeService, OpenAiService openAiService, Consumer<ModelInfo> modelSelectionAction) {
         JComboBox<ModelInfo> selector = new JComboBox<>();
         selector.addItem(null); // Add empty item while loading
         selector.setRenderer(new DefaultListCellRenderer() {
@@ -190,7 +194,58 @@ public class ChatUIManager {
         new SwingWorker<List<ModelInfo>, Void>() {
             @Override
             protected List<ModelInfo> doInBackground() {
-                return Models.getModels(claudeService.getClient()).data();
+                // Get models from both services
+                List<ModelInfo> models = new ArrayList<>();
+                
+                // Variable to store Anthropic models for reference
+                ModelListPage anthropicModels = null;
+                
+                try {
+                    // Get Anthropic models
+                    anthropicModels = Models.getAnthropicModels(claudeService.getClient());
+                    if (anthropicModels != null && anthropicModels.data() != null) {
+                        models.addAll(anthropicModels.data());
+                        log.info("Added {} Anthropic models", anthropicModels.data().size());
+                    }
+                } catch (Exception e) {
+                    log.error("Error loading Anthropic models: {}", e.getMessage(), e);
+                }
+                
+                // Add hardcoded OpenAI models as a temporary solution
+                // This avoids compatibility issues with ModelInfo creation
+                try {
+                    // Common OpenAI models
+                    String[] openAiModels = {
+                        "gpt-4o",
+                        "gpt-4-turbo",
+                        "gpt-4",
+                        "gpt-3.5-turbo"
+                    };
+                    
+                    // Only proceed if we have at least one Anthropic model to use as a template
+                    if (anthropicModels != null && anthropicModels.data() != null && !anthropicModels.data().isEmpty()) {
+                        for (String modelId : openAiModels) {
+                            try {
+                                // Get the existing ModelInfo builder and only set the ID
+                                // This avoids using fields that might not exist in the ModelInfo class
+                                ModelInfo modelInfo = anthropicModels.data().get(0).toBuilder()
+                                    .id("openai:" + modelId)
+                                    .build();
+                            
+                                models.add(modelInfo);
+                                log.debug("Added OpenAI model to selector: {}", modelId);
+                            } catch (Exception e) {
+                                log.warn("Could not create ModelInfo for {}: {}", modelId, e.getMessage());
+                            }
+                        }
+                        log.info("Added {} OpenAI models", openAiModels.length);
+                    } else {
+                        log.warn("Could not add OpenAI models because no Anthropic models were available as templates");
+                    }
+                } catch (Exception e) {
+                    log.error("Error adding OpenAI models: {}", e.getMessage(), e);
+                }
+                return models;
             }
             
             @Override
