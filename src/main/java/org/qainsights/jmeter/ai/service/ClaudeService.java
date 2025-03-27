@@ -9,6 +9,7 @@ import com.anthropic.models.MessageCreateParams;
 import org.qainsights.jmeter.ai.utils.AiConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.qainsights.jmeter.ai.usage.AnthropicUsage;
 
 /**
  * ClaudeService class.
@@ -24,8 +25,8 @@ public class ClaudeService implements AiService {
     private long maxTokens;
 
     // Default system prompt to focus responses on JMeter
-    private static final String DEFAULT_JMETER_SYSTEM_PROMPT = 
-            "You are a JMeter expert assistant embedded in a JMeter plugin called 'Feather Wand - JMeter Agent'. " +
+    private static final String DEFAULT_JMETER_SYSTEM_PROMPT = "You are a JMeter expert assistant embedded in a JMeter plugin called 'Feather Wand - JMeter Agent'. "
+            +
             "Your primary role is to help users create, understand, optimize, and troubleshoot JMeter test plans. " +
             "\n\n" +
             "## CAPABILITIES:\n" +
@@ -43,12 +44,16 @@ public class ClaudeService implements AiService {
             "- Thread Groups (Standard)\n" +
             "- Samplers (HTTP, JDBC)\n" +
             "- Controllers (Logic: Loop, If, While, Transaction, Random)\n" +
-            "- Config Elements (CSV Data Set, HTTP Request Defaults, HTTP Header Manager, HTTP Cookie Manager, User Defined Variables)\n" +
+            "- Config Elements (CSV Data Set, HTTP Request Defaults, HTTP Header Manager, HTTP Cookie Manager, User Defined Variables)\n"
+            +
             "- Pre-Processors (BeanShell, JSR223, Regular Expression User Parameters, User Parameters)\n" +
-            "- Post-Processors (Regular Expression Extractor, JSON Extractor, XPath Extractor, Boundary Extractor, JMESPath Extractor)\n" +
+            "- Post-Processors (Regular Expression Extractor, JSON Extractor, XPath Extractor, Boundary Extractor, JMESPath Extractor)\n"
+            +
             "- Assertions (Response, JSON Path, Duration, Size, XPath, JSR223, MD5Hex)\n" +
-            "- Timers (Constant, Uniform Random, Gaussian Random, Poisson Random, Constant Throughput, Precise Throughput)\n" +
-            "- Listeners (View Results Tree, Aggregate Report, Summary Report, Backend Listener, Response Time Graph)\n" +
+            "- Timers (Constant, Uniform Random, Gaussian Random, Poisson Random, Constant Throughput, Precise Throughput)\n"
+            +
+            "- Listeners (View Results Tree, Aggregate Report, Summary Report, Backend Listener, Response Time Graph)\n"
+            +
             "- Test Fragments and Test Plan structure\n" +
             "\n\n" +
             "## KEY PLUGINS AND EXTENSIONS:\n" +
@@ -60,7 +65,8 @@ public class ClaudeService implements AiService {
             "3. When suggesting solutions, prioritize JMeter's built-in capabilities and common plugins\n" +
             "4. Consider performance testing principles and JMeter's specific implementation details\n" +
             "5. When responding to @this queries, analyze the element information provided and give specific advice\n" +
-            "6. Keep responses focused on the JMeter domain and avoid generic testing advice unless specifically relevant\n" +
+            "6. Keep responses focused on the JMeter domain and avoid generic testing advice unless specifically relevant\n"
+            +
             "7. Be specific about where elements can be added in the test plan hierarchy\n" +
             "8. Always consider test plan maintainability and performance overhead when giving recommendations\n" +
             "9. Highlight potential pitfalls or memory issues in suggested configurations\n" +
@@ -85,7 +91,8 @@ public class ClaudeService implements AiService {
             "- Use proper capitalization for JMeter components (e.g., \"Thread Group\" not \"thread group\")\n" +
             "- Reference Apache JMeter User Manual when providing detailed explanations\n" +
             "\n\n" +
-            "Always provide practical, actionable advice that users can immediately apply to their JMeter test plans. Format your responses with clear sections and code examples when applicable.\n" +
+            "Always provide practical, actionable advice that users can immediately apply to their JMeter test plans. Format your responses with clear sections and code examples when applicable.\n"
+            +
             "\n" +
             "When describing script components or configuration, use proper formatting:\n" +
             "- Code blocks for scripts and commands\n" +
@@ -101,7 +108,7 @@ public class ClaudeService implements AiService {
 
         // Initialize the client
         String API_KEY = AiConfig.getProperty("anthropic.api.key", "YOUR_API_KEY");
-        
+
         // Check if logging should be enabled
         String loggingLevel = AiConfig.getProperty("anthropic.log.level", "");
         if (!loggingLevel.isEmpty()) {
@@ -109,7 +116,7 @@ public class ClaudeService implements AiService {
             System.setProperty("ANTHROPIC_LOG", loggingLevel);
             log.info("Enabled Anthropic client logging with level: {}", loggingLevel);
         }
-        
+
         this.client = AnthropicOkHttpClient.builder()
                 .apiKey(API_KEY)
                 .build();
@@ -118,19 +125,20 @@ public class ClaudeService implements AiService {
         this.currentModelId = AiConfig.getProperty("claude.default.model", "claude-3-sonnet-20240229");
         this.temperature = Float.parseFloat(AiConfig.getProperty("claude.temperature", "0.5"));
         this.maxTokens = Long.parseLong(AiConfig.getProperty("claude.max.tokens", "1024"));
-        
+
         // Load system prompt from properties or use default
         try {
             systemPrompt = AiConfig.getProperty("claude.system.prompt", DEFAULT_JMETER_SYSTEM_PROMPT);
-            
+
             if (systemPrompt == null) {
                 log.warn("System prompt is null, using default");
                 systemPrompt = DEFAULT_JMETER_SYSTEM_PROMPT;
             }
-            
+
             log.info("Loaded system prompt from properties (length: {})", systemPrompt.length());
-            // Only log the first 100 characters of the system prompt to avoid flooding the logs
-            log.info("System prompt (first 100 chars): {}", 
+            // Only log the first 100 characters of the system prompt to avoid flooding the
+            // logs
+            log.info("System prompt (first 100 chars): {}",
                     systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
         } catch (Exception e) {
             log.error("Error loading system prompt, using default", e);
@@ -173,7 +181,7 @@ public class ClaudeService implements AiService {
         this.maxTokens = maxTokens;
         log.info("Max tokens set to: {}", maxTokens);
     }
-    
+
     /**
      * Resets the system prompt initialization flag.
      * This should be called when starting a new conversation.
@@ -206,12 +214,13 @@ public class ClaudeService implements AiService {
 
             // Log which model is being used for this conversation
             log.info("Generating response using model: {} and temperature: {}", currentModelId, temperature);
-            
-            // Check if this is the first message in a conversation based on systemPromptInitialized flag
+
+            // Check if this is the first message in a conversation based on
+            // systemPromptInitialized flag
             boolean isFirstMessage = !systemPromptInitialized;
             if (isFirstMessage) {
-                log.info("Using system prompt (first 100 chars): {}", 
-                    systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
+                log.info("Using system prompt (first 100 chars): {}",
+                        systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
                 systemPromptInitialized = true;
             } else {
                 log.info("Using previously initialized conversation with system prompt");
@@ -229,7 +238,7 @@ public class ClaudeService implements AiService {
                     .maxTokens(maxTokens)
                     .temperature(temperature)
                     .model(currentModelId);
-            
+
             // Only include the system prompt for the first message in a conversation
             if (isFirstMessage) {
                 paramsBuilder.system(systemPrompt);
@@ -252,23 +261,69 @@ public class ClaudeService implements AiService {
 
             MessageCreateParams params = paramsBuilder.build();
             log.info("Request parameters: maxTokens={}, temperature={}, model={}, messagesCount={}",
-                    params.maxTokens(), params.temperature(), params.model(), 
+                    params.maxTokens(), params.temperature(), params.model(),
                     limitedConversation.size());
 
             Message message = client.messages().create(params);
 
             log.info(message.content().toString());
 
-            return String.valueOf(message.content().get(0).text().get().text());
+            // Estimate token usage (Anthropic doesn't provide exact usage in the response)
+            // We can estimate based on characters - this is a rough estimate
+            long estimatedPromptTokens = 0;
+            for (String msg : limitedConversation) {
+                estimatedPromptTokens += estimateTokens(msg);
+            }
+
+            if (isFirstMessage && systemPrompt != null && !systemPrompt.isEmpty()) {
+                estimatedPromptTokens += estimateTokens(systemPrompt);
+            }
+
+            // Estimate response tokens
+            String responseText = String.valueOf(message.content().get(0).text().get().text());
+            long estimatedCompletionTokens = estimateTokens(responseText);
+
+            // Record the estimated usage
+            try {
+                AnthropicUsage.getInstance().recordUsage(
+                        message,
+                        currentModelId,
+                        estimatedPromptTokens,
+                        estimatedCompletionTokens);
+                log.info("Recorded estimated token usage: {} input, {} output",
+                        estimatedPromptTokens, estimatedCompletionTokens);
+            } catch (Exception e) {
+                log.error("Failed to record token usage", e);
+            }
+
+            return responseText;
         } catch (Exception e) {
             log.error("Error generating response", e);
-            
+
             // Extract and format error message for better readability
             String errorMessage = extractUserFriendlyErrorMessage(e);
             return "Error: " + errorMessage;
         }
     }
-    
+
+    /**
+     * Estimates the number of tokens for a given text.
+     * This is a rough estimate as Anthropic doesn't provide exact token counts in
+     * the API response.
+     * Uses a heuristic of characters/4 which works reasonably well in practice.
+     * 
+     * @param text The text to estimate tokens for
+     * @return Estimated token count
+     */
+    private long estimateTokens(String text) {
+        if (text == null || text.isEmpty()) {
+            return 0;
+        }
+        // Rough estimation: average token is ~4 characters
+        // This is a simplification but works reasonably well in practice
+        return Math.max(1, text.length() / 4);
+    }
+
     /**
      * Extracts a user-friendly error message from an exception
      * 
@@ -277,32 +332,32 @@ public class ClaudeService implements AiService {
      */
     private String extractUserFriendlyErrorMessage(Exception e) {
         String errorMessage = e.getMessage();
-        
+
         // Check for credit balance error
         if (errorMessage != null && errorMessage.contains("credit balance is too low")) {
             return "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.";
         }
-        
+
         // Check for API key error
         if (errorMessage != null && errorMessage.contains("invalid_api_key")) {
             return "Invalid API key. Please check your API key and try again.";
         }
-        
+
         // Check for rate limit error
         if (errorMessage != null && errorMessage.contains("rate_limit_exceeded")) {
             return "Rate limit exceeded. Please try again later.";
         }
-        
+
         // Check for model not found error
         if (errorMessage != null && errorMessage.contains("model_not_found")) {
             return "The selected model was not found. Please select a different model.";
         }
-        
+
         // Check for context length error
         if (errorMessage != null && errorMessage.contains("context_length_exceeded")) {
             return "The conversation is too long. Please start a new conversation.";
         }
-        
+
         // For other errors, provide a cleaner message
         if (errorMessage != null) {
             // Extract the actual error message from the AnthropicError format
@@ -317,7 +372,7 @@ public class ClaudeService implements AiService {
                 }
             }
         }
-        
+
         // If we couldn't extract a specific error message, return a generic one
         return "An error occurred while communicating with the Anthropic API. Please try again later.";
     }
