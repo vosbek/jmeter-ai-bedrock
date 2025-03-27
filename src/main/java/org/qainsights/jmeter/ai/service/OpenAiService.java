@@ -2,7 +2,6 @@ package org.qainsights.jmeter.ai.service;
 
 import java.util.List;
 
- 
 import com.openai.client.OpenAIClient;
 import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.models.ChatCompletion;
@@ -11,6 +10,7 @@ import com.openai.models.ChatCompletionCreateParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.qainsights.jmeter.ai.utils.AiConfig;
+import org.qainsights.jmeter.ai.usage.OpenAiUsage;
 
 public class OpenAiService implements AiService {
 
@@ -24,8 +24,8 @@ public class OpenAiService implements AiService {
     private String systemPrompt;
     private long maxTokens;
     // Default system prompt to focus responses on JMeter
-    private static final String DEFAULT_JMETER_SYSTEM_PROMPT = 
-            "You are a JMeter expert assistant embedded in a JMeter plugin called 'Feather Wand - JMeter Agent'. " +
+    private static final String DEFAULT_JMETER_SYSTEM_PROMPT = "You are a JMeter expert assistant embedded in a JMeter plugin called 'Feather Wand - JMeter Agent'. "
+            +
             "Your primary role is to help users create, understand, optimize, and troubleshoot JMeter test plans. " +
             "\n\n" +
             "## CAPABILITIES:\n" +
@@ -43,12 +43,16 @@ public class OpenAiService implements AiService {
             "- Thread Groups (Standard)\n" +
             "- Samplers (HTTP, JDBC)\n" +
             "- Controllers (Logic: Loop, If, While, Transaction, Random)\n" +
-            "- Config Elements (CSV Data Set, HTTP Request Defaults, HTTP Header Manager, HTTP Cookie Manager, User Defined Variables)\n" +
+            "- Config Elements (CSV Data Set, HTTP Request Defaults, HTTP Header Manager, HTTP Cookie Manager, User Defined Variables)\n"
+            +
             "- Pre-Processors (BeanShell, JSR223, Regular Expression User Parameters, User Parameters)\n" +
-            "- Post-Processors (Regular Expression Extractor, JSON Extractor, XPath Extractor, Boundary Extractor, JMESPath Extractor)\n" +
+            "- Post-Processors (Regular Expression Extractor, JSON Extractor, XPath Extractor, Boundary Extractor, JMESPath Extractor)\n"
+            +
             "- Assertions (Response, JSON Path, Duration, Size, XPath, JSR223, MD5Hex)\n" +
-            "- Timers (Constant, Uniform Random, Gaussian Random, Poisson Random, Constant Throughput, Precise Throughput)\n" +
-            "- Listeners (View Results Tree, Aggregate Report, Summary Report, Backend Listener, Response Time Graph)\n" +
+            "- Timers (Constant, Uniform Random, Gaussian Random, Poisson Random, Constant Throughput, Precise Throughput)\n"
+            +
+            "- Listeners (View Results Tree, Aggregate Report, Summary Report, Backend Listener, Response Time Graph)\n"
+            +
             "- Test Fragments and Test Plan structure\n" +
             "\n\n" +
             "## KEY PLUGINS AND EXTENSIONS:\n" +
@@ -60,7 +64,8 @@ public class OpenAiService implements AiService {
             "3. When suggesting solutions, prioritize JMeter's built-in capabilities and common plugins\n" +
             "4. Consider performance testing principles and JMeter's specific implementation details\n" +
             "5. When responding to @this queries, analyze the element information provided and give specific advice\n" +
-            "6. Keep responses focused on the JMeter domain and avoid generic testing advice unless specifically relevant\n" +
+            "6. Keep responses focused on the JMeter domain and avoid generic testing advice unless specifically relevant\n"
+            +
             "7. Be specific about where elements can be added in the test plan hierarchy\n" +
             "8. Always consider test plan maintainability and performance overhead when giving recommendations\n" +
             "9. Highlight potential pitfalls or memory issues in suggested configurations\n" +
@@ -85,7 +90,8 @@ public class OpenAiService implements AiService {
             "- Use proper capitalization for JMeter components (e.g., \"Thread Group\" not \"thread group\")\n" +
             "- Reference Apache JMeter User Manual when providing detailed explanations\n" +
             "\n\n" +
-            "Always provide practical, actionable advice that users can immediately apply to their JMeter test plans. Format your responses with clear sections and code examples when applicable.\n" +
+            "Always provide practical, actionable advice that users can immediately apply to their JMeter test plans. Format your responses with clear sections and code examples when applicable.\n"
+            +
             "\n" +
             "When describing script components or configuration, use proper formatting:\n" +
             "- Code blocks for scripts and commands\n" +
@@ -94,7 +100,7 @@ public class OpenAiService implements AiService {
             "- Bold for element names and important concepts\n" +
             "\n" +
             "Version: JMeter 5.6+ (Also support questions about older versions from 3.0+)";
-    
+
     public OpenAiService() {
         String API_KEY = AiConfig.getProperty("openai.api.key", "");
         String loggingLevel = AiConfig.getProperty("openai.log.level", "");
@@ -104,6 +110,15 @@ public class OpenAiService implements AiService {
             log.info("Enabled OpenAI client logging with level: {}", loggingLevel);
         }
         this.client = new OpenAIOkHttpClient.Builder().apiKey(API_KEY).build();
+
+        // Set the client in the OpenAiUsage singleton for token usage tracking
+        try {
+            OpenAiUsage.getInstance().setClient(this.client);
+            log.info("Set OpenAI client in OpenAiUsage during initialization");
+        } catch (Exception e) {
+            log.error("Failed to set OpenAI client in OpenAiUsage", e);
+        }
+
         this.maxHistorySize = Integer.parseInt(AiConfig.getProperty("openai.max.history.size", "10"));
         this.currentModelId = AiConfig.getProperty("openai.default.model", "gpt-4o");
         this.temperature = Float.parseFloat(AiConfig.getProperty("openai.temperature", "0.7"));
@@ -113,15 +128,16 @@ public class OpenAiService implements AiService {
         // Load system prompt from properties or use default
         try {
             systemPrompt = AiConfig.getProperty("openai.system.prompt", DEFAULT_JMETER_SYSTEM_PROMPT);
-            
+
             if (systemPrompt == null) {
                 log.warn("System prompt is null, using default");
                 systemPrompt = DEFAULT_JMETER_SYSTEM_PROMPT;
             }
-            
+
             log.info("Loaded system prompt from properties (length: {})", systemPrompt.length());
-            // Only log the first 100 characters of the system prompt to avoid flooding the logs
-            log.info("System prompt (first 100 chars): {}", 
+            // Only log the first 100 characters of the system prompt to avoid flooding the
+            // logs
+            log.info("System prompt (first 100 chars): {}",
                     systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
         } catch (Exception e) {
             log.error("Error loading system prompt, using default", e);
@@ -197,12 +213,13 @@ public class OpenAiService implements AiService {
 
             // Log which model is being used for this conversation
             log.info("Generating response using model: {} and temperature: {}", currentModelId, temperature);
-            
-            // Check if this is the first message in a conversation based on systemPromptInitialized flag
+
+            // Check if this is the first message in a conversation based on
+            // systemPromptInitialized flag
             boolean isFirstMessage = !systemPromptInitialized;
             if (isFirstMessage) {
-                log.info("Using system prompt (first 100 chars): {}", 
-                    systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
+                log.info("Using system prompt (first 100 chars): {}",
+                        systemPrompt.substring(0, Math.min(100, systemPrompt.length())));
                 systemPromptInitialized = true;
             } else {
                 log.info("Using previously initialized conversation with system prompt");
@@ -220,15 +237,16 @@ public class OpenAiService implements AiService {
                     .maxCompletionTokens(maxTokens)
                     .temperature(temperature)
                     .model(currentModelId);
-            
+
             // Always include the system prompt
             paramsBuilder.addSystemMessage(systemPrompt);
             log.info("Including system prompt in request (length: {})", systemPrompt.length());
 
             // Debug log the conversation array
             log.info("Conversation size: {}", conversation.size());
-            
-            // Limit conversation history to last maxHistorySize messages to avoid token limits
+
+            // Limit conversation history to last maxHistorySize messages to avoid token
+            // limits
             List<String> limitedHistory;
             if (conversation.size() > maxHistorySize) {
                 limitedHistory = conversation.subList(conversation.size() - maxHistorySize, conversation.size());
@@ -236,12 +254,12 @@ public class OpenAiService implements AiService {
             } else {
                 limitedHistory = new java.util.ArrayList<>(conversation);
             }
-            
+
             // Log the conversation for debugging
             for (int i = 0; i < limitedHistory.size(); i++) {
                 log.info("Message[{}]: {}", i, limitedHistory.get(i));
             }
-            
+
             if (limitedHistory.isEmpty()) {
                 log.warn("Conversation is empty, using default message");
                 paramsBuilder.addUserMessage("Hello, how can you help me with JMeter?");
@@ -255,19 +273,20 @@ public class OpenAiService implements AiService {
                         log.warn("Skipping empty message at position {}", i);
                         continue;
                     }
-                    
+
                     if (i % 2 == 0) {
                         // User messages (even indices: 0, 2, 4...)
                         paramsBuilder.addUserMessage(msg);
-                        log.info("Added user message {}: {}", i, 
+                        log.info("Added user message {}: {}", i,
                                 msg.substring(0, Math.min(50, msg.length())));
                     } else {
                         // Assistant messages (odd indices: 1, 3, 5...)
                         // For OpenAI Java SDK 0.31.0, we need to use a different approach
-                        // Since we can't directly add assistant messages, we'll add them as system messages
+                        // Since we can't directly add assistant messages, we'll add them as system
+                        // messages
                         // This is a workaround and not ideal, but it should work
                         paramsBuilder.addSystemMessage("Assistant: " + msg);
-                        log.info("Added assistant message as system message {}: {}", i, 
+                        log.info("Added assistant message as system message {}: {}", i,
                                 msg.substring(0, Math.min(50, msg.length())));
                     }
                 }
@@ -276,9 +295,9 @@ public class OpenAiService implements AiService {
             // Build the parameters and create the chat completion
             ChatCompletionCreateParams params = paramsBuilder.build();
             log.info("Request parameters: maxTokens={}, temperature={}, model={}, messagesCount={}",
-                    params.maxCompletionTokens(), params.temperature(), params.model(), 
+                    params.maxCompletionTokens(), params.temperature(), params.model(),
                     conversation.size());
-            
+
             // Debug log the messages in the request
             log.info("Request messages: {}", params.messages());
 
@@ -286,26 +305,34 @@ public class OpenAiService implements AiService {
 
             log.info("Chat completions {}", chatCompletion);
 
+            // Record usage data if available
+            try {
+                OpenAiUsage.getInstance().recordUsage(chatCompletion, currentModelId);
+                log.info("Recorded token usage for model: {}", currentModelId);
+            } catch (Exception ex) {
+                log.error("Failed to record token usage", ex);
+            }
+
             // Extract the response content using SDK methods
             String responseContent;
             try {
                 // Get the first choice
                 ChatCompletion.Choice choice = chatCompletion.choices().get(0);
-                
+
                 // Extract the content from the message
                 // The SDK provides methods to access the message and its content
                 responseContent = choice.message().content().orElse("No content available");
             } catch (Exception ex) {
                 log.error("Error extracting content using SDK methods", ex);
-                
+
                 // Fallback to using toString() if SDK methods fail
                 String choiceStr = chatCompletion.choices().get(0).toString();
-                
+
                 // Extract just the actual content text
                 int contentStart = choiceStr.indexOf("content=");
                 if (contentStart > 0) {
                     contentStart += 8; // Move past "content="
-                    
+
                     // Find the end of the content (before refusal or annotations)
                     int contentEnd = choiceStr.indexOf(", refusal=", contentStart);
                     if (contentEnd < 0) {
@@ -314,7 +341,7 @@ public class OpenAiService implements AiService {
                     if (contentEnd < 0) {
                         contentEnd = choiceStr.indexOf("}", contentStart);
                     }
-                    
+
                     if (contentEnd > contentStart) {
                         responseContent = choiceStr.substring(contentStart, contentEnd);
                     } else {
@@ -328,13 +355,13 @@ public class OpenAiService implements AiService {
             return responseContent;
         } catch (Exception e) {
             log.error("Error generating response", e);
-            
+
             // Extract and format error message for better readability
             String errorMessage = extractUserFriendlyErrorMessage(e);
             return "Error: " + errorMessage;
         }
     }
-    
+
     /**
      * Extracts a user-friendly error message from an exception
      * 
@@ -343,32 +370,32 @@ public class OpenAiService implements AiService {
      */
     private String extractUserFriendlyErrorMessage(Exception e) {
         String errorMessage = e.getMessage();
-        
+
         // Check for credit balance error
         if (errorMessage != null && errorMessage.contains("insufficient_quota")) {
             return "Your credit balance is too low to access the OpenAI API. Please check your billing information.";
         }
-        
+
         // Check for API key error
         if (errorMessage != null && errorMessage.contains("invalid_api_key")) {
             return "Invalid API key. Please check your API key and try again.";
         }
-        
+
         // Check for rate limit error
         if (errorMessage != null && errorMessage.contains("rate_limit_exceeded")) {
             return "Rate limit exceeded. Please try again later.";
         }
-        
+
         // Check for model not found error
         if (errorMessage != null && errorMessage.contains("model_not_found")) {
             return "The selected model was not found. Please select a different model.";
         }
-        
+
         // Check for context length error
         if (errorMessage != null && errorMessage.contains("context_length_exceeded")) {
             return "The conversation is too long. Please start a new conversation.";
         }
-        
+
         // For other errors, provide a cleaner message
         if (errorMessage != null) {
             // Try to extract a more readable message
@@ -383,7 +410,7 @@ public class OpenAiService implements AiService {
                 }
             }
         }
-        
+
         // If we couldn't extract a specific error message, return a generic one
         return "An error occurred while communicating with the OpenAI API. Please try again later.";
     }

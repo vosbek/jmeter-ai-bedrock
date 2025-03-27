@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import com.openai.models.Model;
 import org.apache.jorphan.gui.JMeterUIDefaults;
 
 import org.apache.jmeter.control.TransactionController;
@@ -20,6 +21,8 @@ import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.property.JMeterProperty;
 import org.apache.jmeter.testelement.property.PropertyIterator;
 import org.qainsights.jmeter.ai.service.ClaudeService;
+import org.qainsights.jmeter.ai.usage.UsageCommandHandler;
+import org.qainsights.jmeter.ai.utils.JMeterElementManager;
 import org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler;
 import org.qainsights.jmeter.ai.utils.Models;
 import org.qainsights.jmeter.ai.optimizer.OptimizeRequestHandler;
@@ -408,7 +411,7 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
                     com.openai.models.ModelListPage openAiModels = Models.getOpenAiModels(openAiService.getClient());
                     if (openAiModels != null && openAiModels.data() != null) {
                         // Convert OpenAI models to string IDs
-                        for (com.openai.models.Model openAiModel : openAiModels.data()) {
+                        for (Model openAiModel : openAiModels.data()) {
                             // Only include GPT models and filter out specific model types
                             if (openAiModel.id().startsWith("gpt") && 
                                 !openAiModel.id().contains("audio") && 
@@ -560,6 +563,9 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
             return;
         } else if (message.trim().startsWith("@wrap")) {
             handleWrapCommand();
+            return;
+        } else if(message.trim().startsWith("@usage")) {
+            handleUsageCommand();
             return;
         }
         
@@ -901,7 +907,7 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
             
             // Add description based on element type
             String elementType = element.getClass().getSimpleName();
-            info.append(org.qainsights.jmeter.ai.utils.JMeterElementManager.getElementDescription(elementType)).append("\n\n");
+            info.append(JMeterElementManager.getElementDescription(elementType)).append("\n\n");
             
             // Add properties
             info.append("## Properties\n\n");
@@ -1090,6 +1096,57 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
                 }
             });
         });
+    }
+
+    private void handleUsageCommand() {
+        log.info("Processing @usage command");
+        // Get the currently selected model from the dropdown
+        String selectedModel = (String) modelSelector.getSelectedItem();
+
+        messageField.setText("");
+        messageField.setEnabled(false);
+        sendButton.setEnabled(false);
+
+        // Determine which service to use based on the model ID
+        AiService serviceToUse = null;
+        if (selectedModel != null && selectedModel.startsWith("openai:")) {
+            serviceToUse = openAiService;
+        }
+        if (selectedModel != null && selectedModel.startsWith("claude")) {
+            serviceToUse = claudeService;
+        }
+        AiService finalServiceToUse = serviceToUse;
+        new SwingWorker<String, Void>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                UsageCommandHandler usageCommandHandler = new UsageCommandHandler();
+                return usageCommandHandler.processUsageCommand(finalServiceToUse);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    removeLoadingIndicator();
+                    processAiResponse(get());
+                    messageField.setEnabled(true);
+                    sendButton.setEnabled(true);
+                    messageField.requestFocusInWindow();
+                } catch (InterruptedException | ExecutionException e) {
+                    log.error("Error processing usage command", e);
+                    removeLoadingIndicator();
+                    try {
+                        messageProcessor.appendMessage(chatArea.getStyledDocument(),
+                                "Sorry, I encountered an error while processing the usage command. Please try again.",
+                                Color.RED, false);
+                    } catch (BadLocationException ex) {
+                        log.error("Error displaying error message", ex);
+                    }
+                    messageField.setEnabled(true);
+                    sendButton.setEnabled(true);
+                    messageField.requestFocusInWindow();
+                }
+            }
+        }.execute();
     }
     
     /**
