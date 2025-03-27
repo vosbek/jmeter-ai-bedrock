@@ -71,23 +71,63 @@ The Feather Wand plugin can be configured through JMeter properties. Copy the `j
 
 #### OpenAI Configuration
 
-| Property                  | Description                                                  | Default Value              |
-| ------------------------- | ------------------------------------------------------------ | -------------------------- |
-| `openai.api.key`          | Your OpenAI API key                                          | Required                   |
-| `openai.default.model`    | Default OpenAI model to use                                  | gpt-4o                     |
-| `openai.temperature`      | Temperature setting (0.0-1.0)                                | 0.5                        |
-| `openai.max.tokens`       | Maximum tokens for AI responses                              | 1024                       |
-| `openai.max.history.size` | Maximum conversation history size                            | 10                         |
-| `openai.system.prompt`    | System prompt that guides OpenAI's responses                 | See sample properties file |
-| `openai.log.level`        | Logging level for OpenAI API requests ("INFO" or "DEBUG")    | Empty (disabled)           |
+| Property                  | Description                                               | Default Value              |
+| ------------------------- | --------------------------------------------------------- | -------------------------- |
+| `openai.api.key`          | Your OpenAI API key                                       | Required                   |
+| `openai.default.model`    | Default OpenAI model to use                               | gpt-4o                     |
+| `openai.temperature`      | Temperature setting (0.0-1.0)                             | 0.5                        |
+| `openai.max.tokens`       | Maximum tokens for AI responses                           | 1024                       |
+| `openai.max.history.size` | Maximum conversation history size                         | 10                         |
+| `openai.system.prompt`    | System prompt that guides OpenAI's responses              | See sample properties file |
+| `openai.log.level`        | Logging level for OpenAI API requests ("INFO" or "DEBUG") | Empty (disabled)           |
 
 ### 💬 Customizing the System Prompt
 
-The system prompt defines how the AI (Claude or OpenAI) responds to your queries. You can customize this in the properties file to focus on specific aspects of JMeter or add your own guidelines. 
+The system prompt defines how the AI (Claude or OpenAI) responds to your queries. You can customize this in the properties file to focus on specific aspects of JMeter or add your own guidelines.
 
 Both `claude.system.prompt` and `openai.system.prompt` can be configured separately in the properties file. The default prompts are designed to provide helpful, JMeter-specific responses tailored to each AI model's capabilities.
 
 ## 🔍 Special Commands
+
+### 📊 @usage Command
+
+Use the `@usage` command to view detailed token usage information for your AI interactions:
+
+1. **How to Use**:
+
+   - Simply type `@usage` in the chat
+   - The command will show usage statistics for either OpenAI or Anthropic depending on which service you're using
+
+2. **Information Provided**:
+
+   - Overall summary of total conversations and tokens used
+   - Detailed breakdown of recent conversations (last 10)
+   - Token usage per conversation (input and output tokens)
+   - Timestamps and model information
+   - Link to official pricing pages for cost information
+
+3. **Example Output**:
+
+   ```
+   # Usage Summary
+
+   ## Overall Summary
+   - Total Conversations: 5
+   - Total Input Tokens: 1500
+   - Total Output Tokens: 2000
+   - Total Tokens: 3500
+
+   ## Recent Conversations
+   - Conversation 1: 300 input, 400 output tokens
+   - Conversation 2: 250 input, 350 output tokens
+   ...
+   ```
+
+4. **Benefits**:
+   - Track your API usage and costs
+   - Monitor token consumption patterns
+   - Identify potential optimization opportunities
+   - Keep track of conversation history
 
 ### 🪄 @this Command
 
@@ -123,6 +163,7 @@ Simply select an element in your test plan and type `@optimize` or `optimize` in
 Use the `@code` command to extract code blocks from AI responses and insert them directly into JSR223 components. This feature streamlines the process of implementing scripts suggested by the AI:
 
 1. **How to Use**:
+
    - Select a JSR223 component in your test plan
    - Ask the AI for a script (e.g., "Write a JSR223 script to extract values from JSON response")
    - When the AI responds with code blocks, type `@code` to extract and insert the code
@@ -140,6 +181,7 @@ This feature is particularly useful when implementing complex scripts or when yo
 Use the `@lint` command to automatically rename elements in your test plan for better organization and readability:
 
 1. **How to Use**:
+
    - Type `@lint` in the chat to analyze your test plan structure
    - The AI will suggest better names for elements based on their function and context
    - Review the suggestions and confirm to apply the changes
@@ -147,6 +189,7 @@ Use the `@lint` command to automatically rename elements in your test plan for b
    - e.g. `@lint rename the elements based on the URL` or `@lint rename the elements in pascal case`
 
 2. **Benefits**:
+
    - Improves test plan readability and maintenance
    - Applies consistent naming conventions across your test plan
    - Helps identify elements with generic or unclear names
@@ -166,12 +209,14 @@ This feature is particularly valuable for large test plans or when working in te
 Use the `@wrap` command to intelligently group HTTP samplers under Transaction Controllers for better organization and reporting:
 
 1. **How to Use**:
+
    - Select a Thread Group in your test plan
    - Type `@wrap` in the chat
    - The AI will analyze your HTTP samplers and group similar ones under Transaction Controllers
    - Use the undo button to revert changes if needed
 
 2. **Benefits**:
+
    - Improves test plan organization and readability
    - Enhances test reports with meaningful transaction metrics
    - Groups related HTTP requests logically
