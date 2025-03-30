@@ -193,27 +193,23 @@ public class CodeCommandHandler {
         try {
             GuiPackage guiPackage = GuiPackage.getInstance();
             if (guiPackage == null) {
-                log.error("GuiPackage is null");
                 return null;
             }
             
             JMeterTreeNode node = guiPackage.getTreeListener().getCurrentNode();
             if (node == null) {
-                log.error("Current node is null");
                 return null;
             }
             
             // Check if this is a JSR223 element
             String className = node.getTestElement().getClass().getName();
             if (!className.contains("JSR223")) {
-                log.error("Current element is not a JSR223 element: {}", className);
                 return null;
             }
             
             // Get the GUI component
             JMeterGUIComponent guiComp = guiPackage.getCurrentGui();
             if (!(guiComp instanceof TestBeanGUI)) {
-                log.error("Current GUI is not a TestBeanGUI: {}", guiComp.getClass().getName());
                 return null;
             }
             
@@ -248,7 +244,6 @@ public class CodeCommandHandler {
                 return scriptEditor;
             }
             
-            log.error("Could not find RSyntaxTextArea in any container");
             return null;
         } catch (Exception e) {
             log.error("Error finding JSR223 script editor", e);
