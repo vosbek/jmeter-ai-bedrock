@@ -5,15 +5,15 @@ import org.apache.jmeter.gui.MainFrame;
 import org.apache.jmeter.gui.util.JMeterToolBar;
 import org.qainsights.jmeter.ai.service.AiService;
 import org.qainsights.jmeter.ai.service.OpenAiService;
+import org.qainsights.jmeter.ai.service.ClaudeService;
+import org.qainsights.jmeter.ai.utils.AiConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.IOException;
 import java.util.Objects;
 
 public class AiMenuItem extends JMenuItem implements ActionListener {
@@ -32,9 +32,18 @@ public class AiMenuItem extends JMenuItem implements ActionListener {
 
         // Initialize the JSR223 context menu
         try {
-            // Create AI service for the context menu
-            org.qainsights.jmeter.ai.service.AiService aiService = new org.qainsights.jmeter.ai.service.OpenAiService();
-            JSR223ContextMenu.initialize(aiService);
+            // Create AI service for the context menu based on JMeter properties
+            String aiServiceType = AiConfig.getProperty("jmeter.ai.service.type", "openai");
+            AiService aiService = createAiService(aiServiceType);
+
+            if (aiService != null) {
+                JSR223ContextMenu.initialize(aiService);
+                log.info("Initialized JSR223 context menu with {} service", aiServiceType);
+            } else {
+                log.warn("No AI service available for JSR223 context menu");
+                // Still initialize context menu, but it will show the disabled state
+                JSR223ContextMenu.initialize(null);
+            }
 
             // Add tree selection listener to detect when components are selected in JMeter
             // tree
@@ -42,6 +51,37 @@ public class AiMenuItem extends JMenuItem implements ActionListener {
         } catch (Exception e) {
             log.error("Failed to initialize JSR223 context menu", e);
         }
+    }
+
+    /**
+     * Creates an appropriate AI service based on configuration
+     * 
+     * @param serviceType the type of AI service to create
+     * @return the AI service instance, or null if configuration is invalid
+     */
+    private AiService createAiService(String serviceType) {
+        try {
+            if ("openai".equalsIgnoreCase(serviceType)) {
+                // Check if OpenAI API key is configured
+                String apiKey = AiConfig.getProperty("openai.api.key", "");
+                String model = AiConfig.getProperty("openai.default.model", "");
+                if (apiKey != null && !apiKey.isEmpty() && !apiKey.equals("YOUR_API_KEY")
+                        && model != null && !model.isEmpty()) {
+                    return new OpenAiService();
+                }
+            } else if ("anthropic".equalsIgnoreCase(serviceType)) {
+                // Check if Anthropic API key is configured
+                String apiKey = AiConfig.getProperty("anthropic.api.key", "");
+                String model = AiConfig.getProperty("anthropic.model", "");
+                if (apiKey != null && !apiKey.isEmpty() && !apiKey.equals("YOUR_API_KEY")
+                        && model != null && !model.isEmpty()) {
+                    return new ClaudeService();
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error creating AI service", e);
+        }
+        return null;
     }
 
     public static ImageIcon getButtonIcon(int pixelSize) {

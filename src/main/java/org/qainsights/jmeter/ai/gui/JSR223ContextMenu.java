@@ -2,15 +2,17 @@ package org.qainsights.jmeter.ai.gui;
 
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.qainsights.jmeter.ai.service.AiService;
+import org.qainsights.jmeter.ai.service.CodeRefactorer;
+import org.qainsights.jmeter.ai.utils.AiConfig;
+import java.awt.event.ActionEvent;
+import org.apache.jmeter.gui.action.ActionNames;
+import org.apache.jmeter.gui.action.ActionRouter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.List;
 
 /**
  * Adds a right-click context menu to JSR223 script areas.
@@ -73,6 +75,44 @@ public class JSR223ContextMenu {
     }
 
     /**
+     * Checks if AI refactoring is enabled based on JMeter properties and available
+     * service
+     * 
+     * @return true if refactoring is enabled, false otherwise
+     */
+    private static boolean isAiRefactoringEnabled() {
+        // Quick check if we have an AI service
+        if (sharedAiService == null) {
+            return false;
+        }
+
+        // Check if AI refactoring is explicitly disabled
+        String enableRefactoring = AiConfig.getProperty("jmeter.ai.refactoring.enabled", "true");
+        if (!Boolean.parseBoolean(enableRefactoring)) {
+            return false;
+        }
+
+        // Check which AI service to use from properties
+        String aiServiceType = AiConfig.getProperty("jmeter.ai.service.type", "openai");
+
+        // Check if the appropriate API key and model are configured
+        if ("openai".equalsIgnoreCase(aiServiceType)) {
+            String apiKey = AiConfig.getProperty("openai.api.key", "");
+            String model = AiConfig.getProperty("openai.default.model", "");
+            return apiKey != null && !apiKey.isEmpty() && !apiKey.equals("YOUR_API_KEY")
+                    && model != null && !model.isEmpty();
+        } else if ("anthropic".equalsIgnoreCase(aiServiceType)) {
+            String apiKey = AiConfig.getProperty("anthropic.api.key", "");
+            String model = AiConfig.getProperty("anthropic.model", "");
+            return apiKey != null && !apiKey.isEmpty() && !apiKey.equals("YOUR_API_KEY")
+                    && model != null && !model.isEmpty();
+        }
+
+        // If no valid AI service is configured, refactoring is not available
+        return false;
+    }
+
+    /**
      * Adds a context menu to the specified RSyntaxTextArea.
      * 
      * @param textArea  The text area to add the context menu to
@@ -83,6 +123,17 @@ public class JSR223ContextMenu {
         if (textArea.getClientProperty("contextMenuAdded") != null) {
             return;
         }
+
+        // Check if AI refactoring is enabled
+        if (!isAiRefactoringEnabled()) {
+            // If AI refactoring is disabled, don't add our custom context menu
+            // This will allow the default JMeter context menu to appear
+            log.debug("AI refactoring disabled, not adding custom context menu");
+            return;
+        }
+
+        // Create the refactorer
+        CodeRefactorer refactorer = new CodeRefactorer(aiService);
 
         JPopupMenu popupMenu = new JPopupMenu();
 
@@ -107,32 +158,15 @@ public class JSR223ContextMenu {
 
         popupMenu.addSeparator();
 
-        // Add AI help menu
+        // Add AI refactoring menu item
         JMenuItem aiHelpItem = new JMenuItem("Refactor Code");
-        final String REFACTOR_PROMPT = "Please refactor this code by following the best practices to improve its structure, readability, and maintainability while preserving all functionality. Focus on:"
-                + "Proper code organization and separation of concerns"
-                + "Meaningful naming conventions"
-                + "Reducing code duplication"
-                + "Improving error handling"
-                + "Provide the refactored code in a single complete code block with explanations of key changes."
-                + "Give me only the code, no other text or comments."
-                + "Do not include backticks in the code block.";
-
-        aiHelpItem.addActionListener(e -> {
-            String selectedText = textArea.getSelectedText();
-            if (selectedText != null && !selectedText.isEmpty()) {
-                String prompt = REFACTOR_PROMPT + "\n\n" + selectedText;
-                String refactoredCode = aiService.generateResponse(List.of(prompt));
-                textArea.setText(refactoredCode);
-            } else {
-                JOptionPane.showMessageDialog(
-                        textArea,
-                        "Please select some code first",
-                        "Feather Wand Help",
-                        JOptionPane.INFORMATION_MESSAGE);
-            }
-        });
+        aiHelpItem.addActionListener(e -> refactorer.refactorSelectedCode(textArea));
         popupMenu.add(aiHelpItem);
+
+        // Add AI try, catch, finally menu item
+        JMenuItem aiTryCatchFinallyItem = new JMenuItem("Try, Catch, Finally");
+        aiTryCatchFinallyItem.addActionListener(e -> refactorer.refactorTryCatchFinally(textArea));
+        popupMenu.add(aiTryCatchFinallyItem);
 
         // Add format code menu item
         JMenuItem formatCodeItem = new JMenuItem("Format Code");
@@ -162,6 +196,15 @@ public class JSR223ContextMenu {
         });
         popupMenu.add(formatCodeItem);
 
+
+        // Add the Functions Dialog menu item
+        JMenuItem functionsDialogItem = new JMenuItem("Functions Dialog");
+        functionsDialogItem.addActionListener(e -> {
+            ActionRouter.getInstance().doActionNow(
+                    new ActionEvent(e.getSource(), e.getID(), ActionNames.FUNCTIONS));
+        });
+        popupMenu.add(functionsDialogItem);
+
         // Add mouse listener to show the popup menu
         textArea.addMouseListener(new MouseAdapter() {
             @Override
@@ -183,7 +226,19 @@ public class JSR223ContextMenu {
                 boolean hasSelection = textArea.getSelectedText() != null && !textArea.getSelectedText().isEmpty();
                 cutItem.setEnabled(hasSelection);
                 copyItem.setEnabled(hasSelection);
-                aiHelpItem.setEnabled(hasSelection);
+
+                // Find the AI help item if it exists
+                for (int i = 0; i < popupMenu.getComponentCount(); i++) {
+                    if (popupMenu.getComponent(i) instanceof JMenuItem) {
+                        JMenuItem item = (JMenuItem) popupMenu.getComponent(i);
+                        if (item.getText().equals("Refactor Code")) {
+                            item.setEnabled(hasSelection);
+                        }
+                        if (item.getText().equals("Try, Catch, Finally")) {
+                            item.setEnabled(hasSelection);
+                        }
+                    }
+                }
 
                 popupMenu.show(e.getComponent(), e.getX(), e.getY());
             }
@@ -245,8 +300,8 @@ public class JSR223ContextMenu {
      * it has a context menu without using timers that might interfere with typing.
      */
     public static void addContextMenuToCurrentEditor() {
-        if (!initialized || sharedAiService == null) {
-            log.warn("Cannot add context menu - not initialized or no AI service available");
+        if (!initialized) {
+            log.warn("Cannot add context menu - not initialized");
             return;
         }
 
