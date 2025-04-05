@@ -494,9 +494,9 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
                 "**Special commands:**\n" +
                 "- Use `@this` to get information about the currently selected element\n" +
                 "- Use `@optimize` to get optimization suggestions for your test plan\n" +
-                "- Use `@code` to improve code in JSR223 elements\n" +
                 "- Use `@lint` to rename elements in your test plan with meaningful names\n" +
-                "- Use `@wrap` to group HTTP request samplers under Transaction Controllers\n\n" +
+                "- Use `@wrap` to group HTTP request samplers under Transaction Controllers\n" +
+                "- Use `@usage` to view usage statistics for your AI interactions\n\n" +
                 "How can I assist you today?";
 
         try {

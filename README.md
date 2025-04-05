@@ -14,8 +14,8 @@ This plugin provides a simple way to chat with AI in JMeter. Feather Wand serves
 - Use `@this` command to get detailed information about the currently selected element
 - Use `@lint` command to automatically rename elements in your test plan for better organization and readability
 - Use `@optimize` command to get optimization recommendations for the currently selected element in your test plan
-- Use `@code` command to extract code blocks from AI responses and insert them directly into JSR223 components
 - Use `@wrap` command to intelligently group HTTP samplers under Transaction Controllers for better organization and reporting
+- Use right click context menu to refactor code, format code, and add functions in JSR223 script editor
 - Customize AI behavior through configuration properties
 - Switch between Claude and OpenAI models based on your preference or specific needs
 
@@ -157,24 +157,6 @@ For example, if you have an HTTP Request sampler selected, the optimization reco
 - Redirect handling improvements
 
 Simply select an element in your test plan and type `@optimize` or `optimize` in the chat to receive tailored optimization recommendations.
-
-### 💻 @code Command
-
-Use the `@code` command to extract code blocks from AI responses and insert them directly into JSR223 components. This feature streamlines the process of implementing scripts suggested by the AI:
-
-1. **How to Use**:
-
-   - Select a JSR223 component in your test plan
-   - Ask the AI for a script (e.g., "Write a JSR223 script to extract values from JSON response")
-   - When the AI responds with code blocks, type `@code` to extract and insert the code
-
-2. **Benefits**:
-   - Eliminates manual copy-pasting of code
-   - Preserves proper formatting and indentation
-   - Automatically extracts only the code blocks, ignoring explanatory text
-   - Maintains the original AI response in the chat for reference
-
-This feature is particularly useful when implementing complex scripts or when you need to quickly apply the AI's code suggestions to your test plan.
 
 ### 🧹 @lint Command
 
