@@ -5,6 +5,7 @@ This plugin provides a simple way to chat with AI in JMeter. Feather Wand serves
 > 🪄 **About the name**: The name "Feather Wand" was suggested by my children who were inspired by an episode of the animated show Bluey. In the episode, a simple feather becomes a magical wand that transforms the ordinary into something special (heavy) - much like how this plugin aims to transform your JMeter experience with a touch of AI magic!
 
 ![Feather Wand](./images/Feather-Wand-AI-Agent-JMeter.png)
+![Feather Wand - JSR223 Context Menu](./images/Feather-Wand-JSR223-Menu.png)
 
 ## ✨ Features
 
@@ -14,8 +15,8 @@ This plugin provides a simple way to chat with AI in JMeter. Feather Wand serves
 - Use `@this` command to get detailed information about the currently selected element
 - Use `@lint` command to automatically rename elements in your test plan for better organization and readability
 - Use `@optimize` command to get optimization recommendations for the currently selected element in your test plan
-- Use `@code` command to extract code blocks from AI responses and insert them directly into JSR223 components
 - Use `@wrap` command to intelligently group HTTP samplers under Transaction Controllers for better organization and reporting
+- Use right click context menu to refactor code, format code, and add functions in JSR223 script editor
 - Customize AI behavior through configuration properties
 - Switch between Claude and OpenAI models based on your preference or specific needs
 
@@ -37,19 +38,6 @@ This plugin provides a simple way to chat with AI in JMeter. Feather Wand serves
 4. Configure your API key(s) for Anthropic and/or OpenAI in the properties file.
 5. Restart JMeter.
 6. The Feather Wand plugin will appear as a new component in the right-click menu under "Add" > "Non-Test Elements" > "Feather Wand".
-
-## ⚠️ Disclaimer and Best Practices
-
-While the Feather Wand plugin aims to provide helpful assistance, please keep the following in mind:
-
-- **AI Limitations**: The AI can make mistakes or provide incorrect information. Always verify critical suggestions before implementing them in production tests.
-- **Backup Your Test Plans**: Always backup your test plans before making significant changes, especially when implementing AI suggestions.
-- **Test Verification**: After making changes based on AI recommendations, thoroughly verify your test plan functionality in a controlled environment before running it against production systems.
-- **Performance Impact**: Some AI-suggested configurations may impact test performance. Monitor resource usage when implementing new configurations.
-- **Security Considerations**: Do not share sensitive information (credentials, proprietary code, etc.) in your conversations with the AI.
-- **API Costs**: Be aware that using the Claude API or OpenAI API incurs costs based on token usage. The plugin is designed to minimize token usage, but excessive use may result in higher costs.
-
-This plugin is provided as a tool to assist JMeter users, but the ultimate responsibility for test plan design, implementation, and execution remains with the user.
 
 ## ⚙️ Configuration
 
@@ -80,6 +68,13 @@ The Feather Wand plugin can be configured through JMeter properties. Copy the `j
 | `openai.max.history.size` | Maximum conversation history size                         | 10                         |
 | `openai.system.prompt`    | System prompt that guides OpenAI's responses              | See sample properties file |
 | `openai.log.level`        | Logging level for OpenAI API requests ("INFO" or "DEBUG") | Empty (disabled)           |
+
+#### Code Refactoring Configuration
+
+| Property                  | Description                                                  | Default Value              |
+| ------------------------- | ------------------------------------------------------------ | -------------------------- |
+| `jmeter.ai.refactoring.enabled` | Enable code refactoring for JSR223 script editor            | true                       |
+| `jmeter.ai.service.type` | The AI service to use for code refactoring ("openai" or "anthropic") | "openai"                   |
 
 ### 💬 Customizing the System Prompt
 
@@ -157,24 +152,6 @@ For example, if you have an HTTP Request sampler selected, the optimization reco
 - Redirect handling improvements
 
 Simply select an element in your test plan and type `@optimize` or `optimize` in the chat to receive tailored optimization recommendations.
-
-### 💻 @code Command
-
-Use the `@code` command to extract code blocks from AI responses and insert them directly into JSR223 components. This feature streamlines the process of implementing scripts suggested by the AI:
-
-1. **How to Use**:
-
-   - Select a JSR223 component in your test plan
-   - Ask the AI for a script (e.g., "Write a JSR223 script to extract values from JSON response")
-   - When the AI responds with code blocks, type `@code` to extract and insert the code
-
-2. **Benefits**:
-   - Eliminates manual copy-pasting of code
-   - Preserves proper formatting and indentation
-   - Automatically extracts only the code blocks, ignoring explanatory text
-   - Maintains the original AI response in the chat for reference
-
-This feature is particularly useful when implementing complex scripts or when you need to quickly apply the AI's code suggestions to your test plan.
 
 ### 🧹 @lint Command
 
@@ -275,3 +252,16 @@ If you encounter any issues or have suggestions for improvement, please open an 
 ## ⛳️ Roadmap
 
 Please check the [roadmap](https://github.com/users/QAInsights/projects/12) for more details.
+
+## ⚠️ Disclaimer and Best Practices
+
+While the Feather Wand plugin aims to provide helpful assistance, please keep the following in mind:
+
+- **AI Limitations**: The AI can make mistakes or provide incorrect information. Always verify critical suggestions before implementing them in production tests.
+- **Backup Your Test Plans**: Always backup your test plans before making significant changes, especially when implementing AI suggestions.
+- **Test Verification**: After making changes based on AI recommendations, thoroughly verify your test plan functionality in a controlled environment before running it against production systems.
+- **Performance Impact**: Some AI-suggested configurations may impact test performance. Monitor resource usage when implementing new configurations.
+- **Security Considerations**: Do not share sensitive information (credentials, proprietary code, etc.) in your conversations with the AI.
+- **API Costs**: Be aware that using the Claude API or OpenAI API incurs costs based on token usage. The plugin is designed to minimize token usage, but excessive use may result in higher costs.
+
+This plugin is provided as a tool to assist JMeter users, but the ultimate responsibility for test plan design, implementation, and execution remains with the user.

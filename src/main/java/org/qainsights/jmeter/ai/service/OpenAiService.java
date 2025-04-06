@@ -363,6 +363,32 @@ public class OpenAiService implements AiService {
     }
 
     /**
+     * Generates a response from the AI using the specified model.
+     * 
+     * @param conversation The conversation history
+     * @param model        The specific model to use for this request
+     * @return The AI's response
+     */
+    public String generateResponse(List<String> conversation, String model) {
+        log.info("Generating response with specified model: {}", model);
+
+        // Store current model
+        String originalModel = this.currentModelId;
+
+        try {
+            // Set the specified model
+            this.currentModelId = model;
+
+            // Generate the response using the specified model
+            return generateResponse(conversation);
+        } finally {
+            // Restore the original model
+            this.currentModelId = originalModel;
+            log.info("Restored original model: {}", originalModel);
+        }
+    }
+
+    /**
      * Extracts a user-friendly error message from an exception
      * 
      * @param e The exception to extract the error message from

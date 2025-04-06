@@ -8,12 +8,14 @@ import javax.swing.*;
 
 public class AiMenuCreator implements MenuCreator {
     private static final Logger log = LoggerFactory.getLogger(AiMenuCreator.class);
-    
+
     @Override
     public JMenuItem[] getMenuItemsAtLocation(MENU_LOCATION location) {
         if (location == MENU_LOCATION.RUN) {
             try {
-                return new JMenuItem[]{new AiMenuItem()};
+                // Create a temporary parent component to pass to AiMenuItem
+                JMenu parentMenu = new JMenu("AI");
+                return new JMenuItem[] { new AiMenuItem(parentMenu) };
             } catch (Throwable e) {
                 log.error("Failed to load validate thread group plugin", e);
                 return new JMenuItem[0];
