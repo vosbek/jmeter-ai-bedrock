@@ -11,6 +11,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import org.qainsights.jmeter.ai.intellisense.InputBoxIntellisense;
+
 import com.openai.models.Model;
 import org.apache.jorphan.gui.JMeterUIDefaults;
 
@@ -25,6 +27,7 @@ import org.qainsights.jmeter.ai.usage.UsageCommandHandler;
 import org.qainsights.jmeter.ai.utils.JMeterElementManager;
 import org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler;
 import org.qainsights.jmeter.ai.utils.Models;
+import org.qainsights.jmeter.ai.utils.VersionUtils;
 import org.qainsights.jmeter.ai.optimizer.OptimizeRequestHandler;
 import org.qainsights.jmeter.ai.lint.LintCommandHandler;
 import org.qainsights.jmeter.ai.wrap.WrapCommandHandler;
@@ -314,6 +317,9 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
                 BorderFactory.createLineBorder(Color.LIGHT_GRAY),
                 BorderFactory.createEmptyBorder(5, 5, 5, 5)));
 
+        // Setup intellisense for command suggestions
+        new InputBoxIntellisense(messageField);
+
         // Add key listener for Enter to send message
         messageField.addKeyListener(new KeyAdapter() {
             @Override
@@ -367,7 +373,7 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
         headerPanel.setBackground(new Color(240, 240, 240));
 
         // Add a title to the left side of the header panel
-        JLabel titleLabel = new JLabel("Feather Wand - JMeter Agent");
+        JLabel titleLabel = new JLabel("Feather Wand - JMeter Agent v" + VersionUtils.getVersion());
         titleLabel.setFont(new Font(titleLabel.getFont().getName(), Font.BOLD, 14));
         headerPanel.add(titleLabel, BorderLayout.WEST);
 
