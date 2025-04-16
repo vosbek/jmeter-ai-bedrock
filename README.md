@@ -12,7 +12,10 @@ This plugin provides a simple way to chat with AI in JMeter. Feather Wand serves
 - Chat with AI directly within JMeter using either Claude or OpenAI models
 - Get suggestions for JMeter elements based on your needs
 - Ask questions about JMeter functionality and best practices
+- Command intellisense with auto-completion for special commands in the chat input box
 - Use `@this` command to get detailed information about the currently selected element
+- Use `@code` command to extract code blocks from AI responses into the JSR223 editor
+- Use `@usage` command to get usage examples for JMeter components
 - Use `@lint` command to automatically rename elements in your test plan for better organization and readability
 - Use `@optimize` command to get optimization recommendations for the currently selected element in your test plan
 - Use `@wrap` command to intelligently group HTTP samplers under Transaction Controllers for better organization and reporting
