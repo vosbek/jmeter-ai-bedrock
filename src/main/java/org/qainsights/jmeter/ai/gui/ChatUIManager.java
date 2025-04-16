@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.qainsights.jmeter.ai.service.ClaudeService;
 import org.qainsights.jmeter.ai.service.OpenAiService;
 import org.qainsights.jmeter.ai.utils.Models;
+import org.qainsights.jmeter.ai.utils.VersionUtils;
 import com.anthropic.models.ModelInfo;
 import com.anthropic.models.ModelListPage;
 
@@ -137,7 +138,7 @@ public class ChatUIManager {
         headerPanel.setBackground(new Color(240, 240, 240));
         
         // Add a title to the left side of the header panel
-        JLabel titleLabel = new JLabel("Feather Wand - JMeter Agent");
+        JLabel titleLabel = new JLabel("Feather Wand - JMeter Agent v" + VersionUtils.getVersion());
         titleLabel.setFont(new Font(titleLabel.getFont().getName(), Font.BOLD, 14));
         headerPanel.add(titleLabel, BorderLayout.WEST);
         
