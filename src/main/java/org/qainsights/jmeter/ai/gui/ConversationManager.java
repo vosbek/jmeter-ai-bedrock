@@ -14,6 +14,7 @@ import java.util.concurrent.ExecutionException;
 import org.qainsights.jmeter.ai.service.AiService;
 import org.qainsights.jmeter.ai.service.ClaudeService;
 import org.qainsights.jmeter.ai.service.OpenAiService;
+import org.qainsights.jmeter.ai.service.BedrockService;
 import org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler;
 import org.qainsights.jmeter.ai.optimizer.OptimizeRequestHandler;
 import com.anthropic.models.ModelInfo;
@@ -29,6 +30,7 @@ public class ConversationManager {
     private final List<String> conversationHistory;
     private final ClaudeService claudeService;
     private final OpenAiService openAiService;
+    private final BedrockService bedrockService;
     private AiService currentAiService;
     private final MessageProcessor messageProcessor;
     private final JTextPane chatArea;
@@ -50,13 +52,14 @@ public class ConversationManager {
      */
     public ConversationManager(JTextPane chatArea, JTextArea messageField, JButton sendButton,
             JComboBox<ModelInfo> modelSelector, ClaudeService claudeService, OpenAiService openAiService,
-            MessageProcessor messageProcessor, ElementSuggestionManager elementSuggestionManager) {
+            BedrockService bedrockService, MessageProcessor messageProcessor, ElementSuggestionManager elementSuggestionManager) {
         this.chatArea = chatArea;
         this.messageField = messageField;
         this.sendButton = sendButton;
         this.modelSelector = modelSelector;
         this.claudeService = claudeService;
         this.openAiService = openAiService;
+        this.bedrockService = bedrockService;
         this.currentAiService = claudeService; // Default to Claude
         this.messageProcessor = messageProcessor;
         this.elementSuggestionManager = elementSuggestionManager;
@@ -109,6 +112,9 @@ public class ConversationManager {
         if (selectedModel != null && selectedModel.startsWith("openai:")) {
             currentAiService = openAiService;
             log.info("Updated current AI service to OpenAI");
+        } else if (selectedModel != null && selectedModel.startsWith("bedrock:")) {
+            currentAiService = bedrockService;
+            log.info("Updated current AI service to Bedrock");
         } else {
             currentAiService = claudeService;
             log.info("Updated current AI service to Claude");
@@ -499,6 +505,12 @@ public class ConversationManager {
                 log.info("Using OpenAI model for message: {}", modelId);
                 openAiService.setModel(modelId);
                 currentAiService = openAiService;
+            } else if (selectedModelStr.startsWith("bedrock:")) {
+                // For Bedrock models, remove the prefix
+                String modelId = selectedModelStr.substring(8); // Remove "bedrock:" prefix
+                log.info("Using Bedrock model for message: {}", modelId);
+                bedrockService.setModel(modelId);
+                currentAiService = bedrockService;
             } else {
                 // For Claude models
                 log.info("Using Claude model for message: {}", selectedModelStr);

@@ -9,7 +9,7 @@ This plugin provides a simple way to chat with AI in JMeter. Feather Wand serves
 
 ## ✨ Features
 
-- Chat with AI directly within JMeter using either Claude or OpenAI models
+- Chat with AI directly within JMeter using Claude, OpenAI, or AWS Bedrock models
 - Get suggestions for JMeter elements based on your needs
 - Ask questions about JMeter functionality and best practices
 - Command intellisense with auto-completion for special commands in the chat input box
@@ -72,18 +72,32 @@ The Feather Wand plugin can be configured through JMeter properties. Copy the `j
 | `openai.system.prompt`    | System prompt that guides OpenAI's responses              | See sample properties file |
 | `openai.log.level`        | Logging level for OpenAI API requests ("INFO" or "DEBUG") | Empty (disabled)           |
 
+#### AWS Bedrock Configuration
+
+| Property                  | Description                                                  | Default Value              |
+| ------------------------- | ------------------------------------------------------------ | -------------------------- |
+| `bedrock.region`          | AWS region for Bedrock API calls                            | us-east-1                  |
+| `bedrock.default.model`   | Default Bedrock model to use (supports inference profiles)  | us.anthropic.claude-3-5-sonnet-20241022-v2:0 |
+| `bedrock.temperature`     | Temperature setting (0.0-1.0)                               | 0.5                        |
+| `bedrock.max.tokens`      | Maximum tokens for AI responses                              | 1024                       |
+| `bedrock.max.history.size`| Maximum conversation history size                            | 10                         |
+| `bedrock.system.prompt`   | System prompt that guides Bedrock model responses           | See sample properties file |
+| `bedrock.log.level`       | Logging level for Bedrock API requests ("info" or "debug")  | Empty (disabled)           |
+
+**Note**: AWS Bedrock uses AWS credentials (environment variables, IAM roles, or AWS profiles) instead of API keys.
+
 #### Code Refactoring Configuration
 
 | Property                  | Description                                                  | Default Value              |
 | ------------------------- | ------------------------------------------------------------ | -------------------------- |
 | `jmeter.ai.refactoring.enabled` | Enable code refactoring for JSR223 script editor            | true                       |
-| `jmeter.ai.service.type` | The AI service to use for code refactoring ("openai" or "anthropic") | "openai"                   |
+| `jmeter.ai.service.type` | The AI service to use for code refactoring ("openai", "anthropic", or "bedrock") | "openai"                   |
 
 ### 💬 Customizing the System Prompt
 
-The system prompt defines how the AI (Claude or OpenAI) responds to your queries. You can customize this in the properties file to focus on specific aspects of JMeter or add your own guidelines.
+The system prompt defines how the AI (Claude, OpenAI, or Bedrock) responds to your queries. You can customize this in the properties file to focus on specific aspects of JMeter or add your own guidelines.
 
-Both `claude.system.prompt` and `openai.system.prompt` can be configured separately in the properties file. The default prompts are designed to provide helpful, JMeter-specific responses tailored to each AI model's capabilities.
+All three services support separate system prompt configuration: `claude.system.prompt`, `openai.system.prompt`, and `bedrock.system.prompt` can be configured separately in the properties file. The default prompts are designed to provide helpful, JMeter-specific responses tailored to each AI model's capabilities.
 
 ## 🔍 Special Commands
 
@@ -214,7 +228,7 @@ This feature is especially useful for imported or recorded test plans that conta
 
 ## 🗝️ API Configuration
 
-Feather Wand supports both Anthropic (Claude) and OpenAI APIs. You can configure either or both in your properties file.
+Feather Wand supports Anthropic (Claude), OpenAI, and AWS Bedrock APIs. You can configure any or all of them in your properties file.
 
 ### Anthropic API (Claude)
 
@@ -232,12 +246,133 @@ Feather Wand supports both Anthropic (Claude) and OpenAI APIs. You can configure
 4. Copy the API key and paste it into the `openai.api.key` property in your `jmeter.properties` file
 5. For more information about the API key, visit the [API Key documentation](https://platform.openai.com/docs/api-reference)
 
+### AWS Bedrock API
+
+AWS Bedrock provides access to Claude models through AWS infrastructure, offering potential cost savings and improved performance through inference profiles.
+
+#### Prerequisites
+
+1. **AWS Account**: You need an active AWS account with appropriate permissions
+2. **Bedrock Access**: Request access to Claude models in AWS Bedrock (if not already enabled)
+3. **AWS Credentials**: Configure AWS credentials using one of the methods below
+
+#### Authentication Methods
+
+**Option 1: Environment Variables** (Recommended for development)
+```bash
+export AWS_ACCESS_KEY_ID="your-access-key-id"
+export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
+export AWS_SESSION_TOKEN="your-session-token"  # Optional, for temporary credentials
+export AWS_DEFAULT_REGION="us-east-1"
+```
+
+**Option 2: AWS SSO Profile** (Recommended for organizations)
+```bash
+# Configure AWS SSO
+aws configure sso
+
+# Login when needed
+aws sso login --profile your-profile-name
+```
+
+**Option 3: IAM Roles** (Recommended for EC2/ECS deployment)
+- Attach appropriate IAM roles to your EC2 instances or ECS tasks
+- No additional configuration needed in the application
+
+#### Required AWS Permissions
+
+Your AWS credentials need the following permissions:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "bedrock:InvokeModel"
+            ],
+            "Resource": [
+                "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-*",
+                "arn:aws:bedrock:us-east-1:*:inference-profile/*"
+            ]
+        }
+    ]
+}
+```
+
+#### Configuration Steps
+
+1. **Configure AWS Credentials**: Use one of the authentication methods above
+2. **Update Properties File**: Add Bedrock configuration to your `jmeter.properties` file:
+   ```properties
+   # Enable Bedrock service
+   jmeter.ai.service.type=bedrock
+   
+   # AWS Region (us-east-1 recommended for most inference profiles)
+   bedrock.region=us-east-1
+   
+   # Default model (inference profile recommended for better pricing)
+   bedrock.default.model=us.anthropic.claude-3-5-sonnet-20241022-v2:0
+   
+   # Model parameters
+   bedrock.temperature=0.5
+   bedrock.max.tokens=1024
+   bedrock.max.history.size=10
+   ```
+
+3. **Restart JMeter**: Restart JMeter to load the new configuration
+
+#### Supported Models
+
+Feather Wand supports both direct model IDs and inference profiles:
+
+**Inference Profiles** (Recommended - better pricing and performance):
+- `us.anthropic.claude-3-5-sonnet-20241022-v2:0` - Claude 3.5 Sonnet v2
+- `us.anthropic.claude-3-sonnet-20240229-v1:0` - Claude 3 Sonnet
+
+**Direct Model IDs**:
+- `anthropic.claude-3-5-sonnet-20241022-v2:0` - Claude 3.5 Sonnet v2
+- `anthropic.claude-3-sonnet-20240229-v1:0` - Claude 3 Sonnet
+
+#### Cost Optimization
+
+- **Use Inference Profiles**: Up to 75% cost reduction compared to on-demand models
+- **Monitor Usage**: Use the `@usage` command to track token consumption
+- **Regional Selection**: us-east-1 typically offers the best pricing
+- **Right-size Requests**: Adjust `max.tokens` based on your needs
+
+#### Troubleshooting
+
+**Common Issues and Solutions**:
+
+1. **Access Denied Error**
+   - Verify AWS credentials are configured correctly
+   - Check IAM permissions include `bedrock:InvokeModel`
+   - Ensure model access is enabled in AWS Bedrock console
+
+2. **Model Not Found Error**
+   - Verify the model ID is correct
+   - Check if the model is available in your AWS region
+   - For inference profiles, ensure they're available in us-east-1
+
+3. **Authentication Errors**
+   - Verify environment variables are set correctly
+   - For SSO: Run `aws sso login` to refresh credentials
+   - Check AWS CLI configuration with `aws sts get-caller-identity`
+
+4. **Region Issues**
+   - Claude models and inference profiles are primarily available in us-east-1
+   - Update `bedrock.region` property to match your model's region
+
+For more information, visit the [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
+
 ### Model Selection
 
 Feather Wand automatically filters available models to show only chat-compatible models. By default, it excludes audio, TTS, transcription, and other non-chat models. You can select your preferred model from the dropdown in the UI, or set default models in the properties file:
 
 - For Claude: `claude.default.model` (e.g., `claude-3-7-sonnet-20250219`)
 - For OpenAI: `openai.default.model` (e.g., `gpt-4o`)
+- For Bedrock: `bedrock.default.model` (e.g., `us.anthropic.claude-3-5-sonnet-20241022-v2:0`)
 
 ### Model Filtering
 
@@ -245,6 +380,7 @@ Feather Wand applies intelligent filtering to the available models to ensure you
 
 - **OpenAI Models**: Filters out audio, TTS, whisper, davinci, search, transcribe, realtime, and instruct models to show only GPT chat models.
 - **Claude Models**: Shows only the latest available Claude models.
+- **Bedrock Models**: Shows Claude models available through AWS Bedrock, including both direct model IDs and inference profiles.
 
 This filtering ensures that you only see models that are compatible with the chat interface and appropriate for JMeter-related tasks.
 

@@ -23,6 +23,7 @@ import org.apache.jmeter.testelement.TestElement;
 import org.apache.jmeter.testelement.property.JMeterProperty;
 import org.apache.jmeter.testelement.property.PropertyIterator;
 import org.qainsights.jmeter.ai.service.ClaudeService;
+import org.qainsights.jmeter.ai.service.BedrockService;
 import org.qainsights.jmeter.ai.usage.UsageCommandHandler;
 import org.qainsights.jmeter.ai.utils.JMeterElementManager;
 import org.qainsights.jmeter.ai.utils.JMeterElementRequestHandler;
@@ -58,6 +59,7 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
     private List<String> conversationHistory;
     private ClaudeService claudeService;
     private OpenAiService openAiService;
+    private BedrockService bedrockService;
     private TreeNavigationButtons treeNavigationButtons;
     private JPanel navigationPanel; // Added field for navigation panel
 
@@ -85,6 +87,7 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
         // Initialize services and utilities
         claudeService = new ClaudeService();
         openAiService = new OpenAiService();
+        bedrockService = new BedrockService();
         messageProcessor = new MessageProcessor();
 
         // Initialize tree navigation buttons with action listeners
@@ -767,6 +770,10 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
                     // Use OpenAI service
                     serviceToUse = openAiService;
                     log.info("Using OpenAI service for optimization");
+                } else if (selectedModel.startsWith("bedrock:")) {
+                    // Use Bedrock service
+                    serviceToUse = bedrockService;
+                    log.info("Using Bedrock service for optimization");
                 } else {
                     // Use Claude service
                     serviceToUse = claudeService;
@@ -1054,8 +1061,9 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
         AiService serviceToUse = null;
         if (selectedModel != null && selectedModel.startsWith("openai:")) {
             serviceToUse = openAiService;
-        }
-        if (selectedModel != null && selectedModel.startsWith("claude")) {
+        } else if (selectedModel != null && selectedModel.startsWith("bedrock:")) {
+            serviceToUse = bedrockService;
+        } else if (selectedModel != null && selectedModel.startsWith("claude")) {
             serviceToUse = claudeService;
         }
         AiService finalServiceToUse = serviceToUse;
@@ -1197,6 +1205,8 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
                 AiService serviceToUse;
                 if (selectedModel.startsWith("openai:")) {
                     serviceToUse = openAiService;
+                } else if (selectedModel.startsWith("bedrock:")) {
+                    serviceToUse = bedrockService;
                 } else {
                     serviceToUse = claudeService;
                 }
@@ -1266,7 +1276,7 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
         // Get the model ID
         log.info("Using model from dropdown for message: {}", selectedModel);
 
-        // Check if this is an OpenAI model (prefixed with "openai:")
+        // Check which service to use based on model prefix
         if (selectedModel.startsWith("openai:")) {
             // Extract the actual OpenAI model ID
             String openAiModelId = selectedModel.substring(7); // Remove "openai:" prefix
@@ -1277,6 +1287,16 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
 
             // Call OpenAI API with conversation history
             return openAiService.generateResponse(new ArrayList<>(conversationHistory));
+        } else if (selectedModel.startsWith("bedrock:")) {
+            // Extract the actual Bedrock model ID
+            String bedrockModelId = selectedModel.substring(8); // Remove "bedrock:" prefix
+            log.info("Using Bedrock model: {}", bedrockModelId);
+
+            // Set the model in the Bedrock service
+            bedrockService.setModel(bedrockModelId);
+
+            // Call AWS Bedrock API with conversation history
+            return bedrockService.generateResponse(new ArrayList<>(conversationHistory));
         } else {
             // This is an Anthropic model
             log.info("Using Anthropic model: {}", selectedModel);
@@ -1307,6 +1327,8 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
                 AiService serviceToUse;
                 if (selectedModel.startsWith("openai:")) {
                     serviceToUse = openAiService;
+                } else if (selectedModel.startsWith("bedrock:")) {
+                    serviceToUse = bedrockService;
                 } else {
                     serviceToUse = claudeService;
                 }
