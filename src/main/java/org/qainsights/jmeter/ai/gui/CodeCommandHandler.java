@@ -42,9 +42,7 @@ public class CodeCommandHandler {
                 lastScriptEditor = scriptEditor;
             } else {
                 // Keep the last stored text if nothing is currently selected
-                if (lastScriptEditor == scriptEditor && lastSelectedText != null && !lastSelectedText.isEmpty()) {
-                    lastSelectedText = lastSelectedText;
-                }
+                // lastSelectedText is already set from previous selection
             }
         } else {
             log.info("No JSR223 script editor found");

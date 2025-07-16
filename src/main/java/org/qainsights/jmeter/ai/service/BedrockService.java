@@ -528,11 +528,10 @@ public class BedrockService implements AiService {
                     .credentialsProvider(DefaultCredentialsProvider.create())
                     .build();
                     
-            var request = software.amazon.awssdk.services.bedrock.model.ListFoundationModelsRequest.builder()
-                    .maxResults(1) // Just test with one model
+            software.amazon.awssdk.services.bedrock.model.ListFoundationModelsRequest request = software.amazon.awssdk.services.bedrock.model.ListFoundationModelsRequest.builder()
                     .build();
                     
-            var response = testClient.listFoundationModels(request);
+            software.amazon.awssdk.services.bedrock.model.ListFoundationModelsResponse response = testClient.listFoundationModels(request);
             
             if (response.modelSummaries() != null && !response.modelSummaries().isEmpty()) {
                 log.info("AWS Bedrock connection test successful. {} models available", response.modelSummaries().size());

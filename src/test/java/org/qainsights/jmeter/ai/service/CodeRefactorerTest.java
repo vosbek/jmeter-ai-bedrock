@@ -150,11 +150,13 @@ class CodeRefactorerTest {
         assertTrue(result);
 
         // Verify the prompt sent to the AI service
-        ArgumentCaptor<List<String>> promptCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List> promptCaptor = ArgumentCaptor.forClass(List.class);
         verify(aiService).generateResponse(promptCaptor.capture(), eq("gpt-4o"));
 
         // Check that the prompt contains the selected code
-        String prompt = promptCaptor.getValue().get(0);
+        @SuppressWarnings("unchecked")
+        List<String> capturedPrompt = (List<String>) promptCaptor.getValue();
+        String prompt = capturedPrompt.get(0);
         assertTrue(prompt.contains(selectedCode));
 
         // Verify that the refactored code was applied to the text area

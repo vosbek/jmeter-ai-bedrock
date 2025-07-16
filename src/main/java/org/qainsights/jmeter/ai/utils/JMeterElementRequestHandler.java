@@ -1009,26 +1009,4 @@ public class JMeterElementRequestHandler {
         return elementTypeMap;
     }
 
-    /**
-     * Checks if a node has a parent of the specified type.
-     * 
-     * @param node The node to check
-     * @param type The type to look for
-     * @return True if the node has a parent of the specified type, false otherwise
-     */
-    private static boolean hasParentOfType(JMeterTreeNode node, String type) {
-        if (node == null) {
-            return false;
-        }
-
-        JMeterTreeNode parent = (JMeterTreeNode) node.getParent();
-        while (parent != null) {
-            if (parent.getTestElement().getClass().getSimpleName().equals(type)) {
-                return true;
-            }
-            parent = (JMeterTreeNode) parent.getParent();
-        }
-
-        return false;
-    }
 }
