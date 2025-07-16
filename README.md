@@ -259,6 +259,24 @@ AWS Bedrock provides access to Claude models through AWS infrastructure, offerin
 #### Authentication Methods
 
 **Option 1: Environment Variables** (Recommended for development)
+
+*On Windows (Command Prompt):*
+```cmd
+set AWS_ACCESS_KEY_ID=your-access-key-id
+set AWS_SECRET_ACCESS_KEY=your-secret-access-key
+set AWS_SESSION_TOKEN=your-session-token
+set AWS_DEFAULT_REGION=us-east-1
+```
+
+*On Windows (PowerShell):*
+```powershell
+$env:AWS_ACCESS_KEY_ID="your-access-key-id"
+$env:AWS_SECRET_ACCESS_KEY="your-secret-access-key"
+$env:AWS_SESSION_TOKEN="your-session-token"  # Optional, for temporary credentials
+$env:AWS_DEFAULT_REGION="us-east-1"
+```
+
+*On Linux/Mac:*
 ```bash
 export AWS_ACCESS_KEY_ID="your-access-key-id"
 export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
@@ -266,7 +284,25 @@ export AWS_SESSION_TOKEN="your-session-token"  # Optional, for temporary credent
 export AWS_DEFAULT_REGION="us-east-1"
 ```
 
-**Option 2: AWS SSO Profile** (Recommended for organizations)
+**Option 2: AWS CLI Configuration** (Recommended for most users)
+
+*Install AWS CLI and configure:*
+```bash
+# Install AWS CLI (if not already installed)
+# On Windows: Download from https://aws.amazon.com/cli/
+# On Linux/Mac: pip install awscli
+
+# Configure AWS credentials
+aws configure
+```
+
+This will prompt you for:
+- AWS Access Key ID
+- AWS Secret Access Key
+- Default region (recommend: us-east-1)
+- Default output format (recommend: json)
+
+**Option 3: AWS SSO Profile** (Recommended for organizations)
 ```bash
 # Configure AWS SSO
 aws configure sso
@@ -275,9 +311,28 @@ aws configure sso
 aws sso login --profile your-profile-name
 ```
 
-**Option 3: IAM Roles** (Recommended for EC2/ECS deployment)
+**Option 4: IAM Roles** (Recommended for EC2/ECS deployment)
 - Attach appropriate IAM roles to your EC2 instances or ECS tasks
 - No additional configuration needed in the application
+
+#### Windows-Specific Setup Notes
+
+**For Windows Users:**
+1. **Environment Variables**: You can set environment variables permanently through:
+   - Control Panel → System → Advanced → Environment Variables
+   - Or use `setx` command: `setx AWS_ACCESS_KEY_ID "your-key"`
+
+2. **AWS CLI Installation**: Download the AWS CLI MSI installer from the official AWS website
+
+3. **PowerShell Execution Policy**: If you encounter execution policy errors, run:
+   ```powershell
+   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+   ```
+
+4. **Corporate Networks**: If you're behind a corporate firewall, you may need to:
+   - Configure proxy settings for AWS CLI
+   - Ask your IT administrator about firewall rules for AWS endpoints
+   - Consider using AWS SSO if your organization supports it
 
 #### Required AWS Permissions
 
@@ -363,6 +418,37 @@ Feather Wand supports both direct model IDs and inference profiles:
 4. **Region Issues**
    - Claude models and inference profiles are primarily available in us-east-1
    - Update `bedrock.region` property to match your model's region
+
+**Windows-Specific Troubleshooting**:
+
+5. **Plugin Not Working on Windows**
+   - Ensure you're using the updated `run.bat` script or set `JMETER_HOME` environment variable
+   - Check that JMeter is installed in a supported location
+   - Verify environment variables are set system-wide (not just in current session)
+
+6. **Credential Issues on Windows**
+   - Test your AWS configuration: `aws sts get-caller-identity`
+   - Check if credentials are in the correct location: `%USERPROFILE%\.aws\credentials`
+   - For environment variables, use `echo %AWS_ACCESS_KEY_ID%` to verify they're set
+
+7. **Network/Firewall Issues**
+   - If behind corporate firewall, configure AWS CLI proxy settings:
+     ```bash
+     aws configure set proxy.http_proxy http://proxy.company.com:80
+     aws configure set proxy.https_proxy https://proxy.company.com:443
+     ```
+   - Ensure Windows Firewall allows JMeter and Java to access the internet
+   - Check if antivirus software is blocking network connections
+
+8. **Path Issues**
+   - Use the updated `run.bat` script which handles various JMeter installation paths
+   - Set `JMETER_HOME` environment variable if JMeter is in a custom location
+   - Ensure paths with spaces are properly quoted
+
+9. **Java/JMeter Compatibility**
+   - Ensure you're using a compatible Java version (8+)
+   - Verify JMeter version compatibility (5.6+ recommended)
+   - Check JMeter logs for any plugin loading errors
 
 For more information, visit the [AWS Bedrock Documentation](https://docs.aws.amazon.com/bedrock/)
 

@@ -451,6 +451,20 @@ public class AiChatPanel extends JPanel implements PropertyChangeListener {
                     log.error("Error adding OpenAI models: {}", e.getMessage(), e);
                 }
 
+                // Add Bedrock models
+                try {
+                    List<String> bedrockModels = Models.getBedrockModelIds();
+                    if (bedrockModels != null && !bedrockModels.isEmpty()) {
+                        allModels.addAll(bedrockModels);
+                        log.info("Added {} Bedrock models to selector", bedrockModels.size());
+                        for (String modelId : bedrockModels) {
+                            log.debug("Added Bedrock model to selector: {}", modelId);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("Error adding Bedrock models: {}", e.getMessage(), e);
+                }
+
                 return allModels;
             }
 

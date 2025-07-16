@@ -116,6 +116,9 @@ public class BedrockService implements AiService {
         // Default history size of 10, can be configured through jmeter.properties
         this.maxHistorySize = Integer.parseInt(AiConfig.getProperty("bedrock.max.history.size", "10"));
 
+        // Validate configuration before initializing
+        validateConfiguration();
+
         // Initialize the client with AWS credentials
         String region = AiConfig.getProperty("bedrock.region", "us-east-1");
         
@@ -126,9 +129,13 @@ public class BedrockService implements AiService {
                     .build();
             
             log.info("AWS Bedrock client initialized for region: {}", region);
+            
+            // Test the connection with a simple operation (this will validate credentials)
+            testConnection();
+            
         } catch (Exception e) {
             log.error("Failed to initialize AWS Bedrock client", e);
-            throw new RuntimeException("Failed to initialize AWS Bedrock client", e);
+            throw new RuntimeException("Failed to initialize AWS Bedrock client: " + extractUserFriendlyErrorMessage(e), e);
         }
 
         // Get default model from properties or use Claude 3.5 Sonnet inference profile
@@ -369,39 +376,177 @@ public class BedrockService implements AiService {
      */
     private String extractUserFriendlyErrorMessage(Exception e) {
         String errorMessage = e.getMessage();
+        String className = e.getClass().getSimpleName();
+
+        // Check for AWS credential-related errors (common on Windows)
+        if (errorMessage != null && (errorMessage.contains("Unable to load AWS credentials") ||
+                errorMessage.contains("The AWS Access Key Id you provided does not exist") ||
+                errorMessage.contains("NoCredentialsProvided") ||
+                className.contains("NoCredentialsException"))) {
+            return "AWS credentials not found. Please configure your AWS credentials using one of these methods:\n" +
+                   "1. Set environment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY\n" +
+                   "2. Use AWS CLI: 'aws configure'\n" +
+                   "3. Set up AWS SSO profile\n" +
+                   "For detailed setup instructions, see the plugin documentation.";
+        }
+
+        // Check for region-specific errors
+        if (errorMessage != null && (errorMessage.contains("InvalidSignatureException") ||
+                errorMessage.contains("SignatureDoesNotMatch"))) {
+            return "AWS signature error. This might be due to incorrect credentials or system clock issues. " +
+                   "Please verify your AWS credentials and ensure your system time is correct.";
+        }
 
         // Check for common AWS Bedrock errors
         if (errorMessage != null && errorMessage.contains("AccessDenied")) {
-            return "Access denied. Please check your AWS credentials and permissions for Bedrock.";
+            return "Access denied. Please check your AWS credentials and permissions for Bedrock. " +
+                   "Ensure your IAM user/role has 'bedrock:InvokeModel' permission.";
         }
 
         // Check for model not found error
         if (errorMessage != null && errorMessage.contains("ModelNotFound")) {
-            return "The selected model was not found. Please check the model ID and try again.";
+            return "The selected model was not found. Please check the model ID and try again. " +
+                   "Ensure the model is available in your AWS region (" + 
+                   AiConfig.getProperty("bedrock.region", "us-east-1") + ").";
+        }
+
+        // Check for region availability issues
+        if (errorMessage != null && (errorMessage.contains("UnknownEndpoint") ||
+                errorMessage.contains("InvalidEndpoint") ||
+                errorMessage.contains("EndpointConnectionError"))) {
+            return "AWS Bedrock service endpoint error. Please check that AWS Bedrock is available in your region (" +
+                   AiConfig.getProperty("bedrock.region", "us-east-1") + "). " +
+                   "Consider using 'us-east-1' which has the most model availability.";
         }
 
         // Check for throttling error
         if (errorMessage != null && errorMessage.contains("ThrottlingException")) {
-            return "Request was throttled. Please try again later.";
+            return "Request was throttled by AWS Bedrock. Please try again in a few moments.";
         }
 
         // Check for quota exceeded error
         if (errorMessage != null && errorMessage.contains("ServiceQuotaExceededException")) {
-            return "Service quota exceeded. Please check your AWS Bedrock limits.";
+            return "Service quota exceeded. Please check your AWS Bedrock limits in the AWS console " +
+                   "or request a quota increase.";
         }
 
         // Check for validation error
         if (errorMessage != null && errorMessage.contains("ValidationException")) {
-            return "Invalid request parameters. Please check your configuration.";
+            return "Invalid request parameters. Please check your Bedrock configuration in jmeter.properties.";
         }
 
-        // For other errors, provide a cleaner message
+        // Check for connection/network errors (common on Windows with firewalls)
+        if (errorMessage != null && (errorMessage.contains("UnknownHostException") ||
+                errorMessage.contains("ConnectException") ||
+                errorMessage.contains("SocketTimeoutException") ||
+                errorMessage.contains("Connection refused"))) {
+            return "Network connection error. Please check your internet connection and firewall settings. " +
+                   "If you're behind a corporate firewall, you may need to configure proxy settings.";
+        }
+
+        // Check for SSL/TLS errors (can occur on Windows with corporate networks)
+        if (errorMessage != null && (errorMessage.contains("SSLException") ||
+                errorMessage.contains("CertificateException") ||
+                errorMessage.contains("SSLHandshakeException"))) {
+            return "SSL/TLS connection error. This may be due to corporate firewall or proxy settings. " +
+                   "Contact your IT administrator if you're on a corporate network.";
+        }
+
+        // For other errors, provide a cleaner message with troubleshooting hints
         if (errorMessage != null) {
-            return errorMessage;
+            return errorMessage + "\n\nTroubleshooting tips:\n" +
+                   "- Verify AWS credentials are configured\n" +
+                   "- Check that Bedrock is available in your region\n" +
+                   "- Ensure model access is enabled in AWS console";
         }
 
-        // If we couldn't extract a specific error message, return a generic one
-        return "An error occurred while communicating with AWS Bedrock. Please try again later.";
+        // If we couldn't extract a specific error message, return a generic one with help
+        return "An error occurred while communicating with AWS Bedrock. Please check your configuration:\n" +
+               "- AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)\n" +
+               "- AWS region setting (bedrock.region in jmeter.properties)\n" +
+               "- Network connectivity and firewall settings";
+    }
+
+    /**
+     * Validates the Bedrock service configuration
+     */
+    private void validateConfiguration() {
+        log.info("Validating Bedrock service configuration");
+        
+        // Check required properties
+        String region = AiConfig.getProperty("bedrock.region", "us-east-1");
+        String model = AiConfig.getProperty("bedrock.default.model", "");
+        
+        if (region == null || region.trim().isEmpty()) {
+            throw new RuntimeException("Bedrock region not configured. Please set 'bedrock.region' in jmeter.properties");
+        }
+        
+        if (model == null || model.trim().isEmpty()) {
+            log.warn("No default Bedrock model configured. Using fallback model.");
+        }
+        
+        // Validate region format
+        try {
+            Region.of(region);
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid AWS region: " + region + ". Please check 'bedrock.region' in jmeter.properties");
+        }
+        
+        // Check for common configuration issues on Windows
+        String osName = System.getProperty("os.name").toLowerCase();
+        if (osName.contains("windows")) {
+            // Check if AWS CLI is available
+            try {
+                ProcessBuilder pb = new ProcessBuilder("aws", "--version");
+                Process process = pb.start();
+                int exitCode = process.waitFor();
+                if (exitCode == 0) {
+                    log.info("AWS CLI detected on Windows system");
+                } else {
+                    log.warn("AWS CLI not found. Please install AWS CLI for easier credential management on Windows");
+                }
+            } catch (Exception e) {
+                log.warn("AWS CLI not available: {}", e.getMessage());
+            }
+        }
+        
+        log.info("Bedrock configuration validation completed");
+    }
+    
+    /**
+     * Tests the connection to AWS Bedrock
+     */
+    private void testConnection() {
+        try {
+            log.info("Testing AWS Bedrock connection");
+            
+            // Try to list foundation models as a connection test
+            // This validates both credentials and network connectivity
+            software.amazon.awssdk.services.bedrock.BedrockClient testClient = 
+                software.amazon.awssdk.services.bedrock.BedrockClient.builder()
+                    .region(Region.of(AiConfig.getProperty("bedrock.region", "us-east-1")))
+                    .credentialsProvider(DefaultCredentialsProvider.create())
+                    .build();
+                    
+            var request = software.amazon.awssdk.services.bedrock.model.ListFoundationModelsRequest.builder()
+                    .maxResults(1) // Just test with one model
+                    .build();
+                    
+            var response = testClient.listFoundationModels(request);
+            
+            if (response.modelSummaries() != null && !response.modelSummaries().isEmpty()) {
+                log.info("AWS Bedrock connection test successful. {} models available", response.modelSummaries().size());
+            } else {
+                log.warn("AWS Bedrock connection successful but no models found. This may indicate a permission issue.");
+            }
+            
+            testClient.close();
+            
+        } catch (Exception e) {
+            log.warn("AWS Bedrock connection test failed: {}", e.getMessage());
+            // Don't throw exception here - let the service try to work anyway
+            // Some users might have limited permissions that don't allow listing models
+        }
     }
 
     public String getName() {
